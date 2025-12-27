@@ -403,9 +403,9 @@ window.triggerQRUpload = function() {
         return;
     }
     
-    const fileInput = document.getElementById('qrFileInput');
-    if (fileInput) {
-        fileInput.click();
+    const inputs = document.querySelectorAll('#qrFileInput');
+    if (inputs && inputs.length > 0) {
+        inputs[0].click();
     }
 };
 
@@ -1096,3 +1096,4 @@ window.viewCreator = async function(id) {
         content.innerHTML = '<div class="empty-section">Error loading profile</div>';
     }
 };
+
