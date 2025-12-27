@@ -58,6 +58,21 @@
                     </div>
                 </div>
 
+                <!-- Search Section -->
+                <div class="search-section">
+                    <h2 class="search-title">Find Creators</h2>
+                    <div class="search-box">
+                        <input 
+                            type="text" 
+                            id="creatorSearch" 
+                            class="search-input" 
+                            placeholder="🔍 Search creators by name..."
+                            oninput="handleSearch(this.value)"
+                        >
+                    </div>
+                    <div id="searchResults" class="search-results"></div>
+                </div>
+
                 <div class="features-grid">
                     <div class="glass-card feature-card">
                         <div class="feature-icon">📱</div>
@@ -314,6 +329,23 @@
         </div>
     </div>
 
+    <!-- Creator Profile Modal -->
+    <div class="modal-overlay" id="creatorProfileModal">
+        <div class="modal creator-profile-modal">
+            <div class="creator-profile-header">
+                <div class="creator-profile-avatar" id="creatorProfileAvatar">J</div>
+                <div class="creator-profile-info">
+                    <h2 id="creatorProfileName">Creator Name</h2>
+                    <p id="creatorProfileEmail">email@example.com</p>
+                </div>
+                <button class="modal-close" onclick="closeModal('creatorProfileModal')">&times;</button>
+            </div>
+            <div class="creator-profile-content" id="creatorProfileContent">
+                <!-- Dynamic content loaded here -->
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Container -->
     <div class="toast-container" id="toastContainer"></div>
 
@@ -321,4 +353,3 @@
     <script type="module" src="script.js"></script>
 </body>
 </html>
-
