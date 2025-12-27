@@ -19,13 +19,11 @@ import {
     getDocs,
     addDoc,
     deleteDoc,
-    query,
-    orderBy,
     serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 // ==========================================
-// YOUR FIREBASE CONFIG
+// FIREBASE CONFIG
 // ==========================================
 const firebaseConfig = {
     apiKey: "AIzaSyBm5_P7L85paQ53Gt6e8FxY36j9A5EV9Ag",
@@ -47,20 +45,18 @@ const db = getFirestore(app);
 // ==========================================
 const APP = {
     currentUser: null,
-    userData: null
+    userData: null,
+    creatorsLoaded: false,
+    creators: []
 };
 
 // ==========================================
 // INITIALIZE
 // ==========================================
-function init() {
-    console.log('App initializing...');
+document.addEventListener('DOMContentLoaded', function() {
     setupAuthListener();
-    setupEventListeners();
-    loadPublicCampaigns();
-    loadAllCreators();
-    console.log('App initialized successfully');
-}
+    setupGlobalListeners();
+});
 
 // ==========================================
 // AUTH LISTENER
@@ -68,11 +64,9 @@ function init() {
 function setupAuthListener() {
     onAuthStateChanged(auth, async (user) => {
         if (user) {
-            console.log('User logged in:', user.email);
             APP.currentUser = user;
             await loadUserData(user.uid);
         } else {
-            console.log('User logged out');
             APP.currentUser = null;
             APP.userData = null;
         }
@@ -82,14 +76,13 @@ function setupAuthListener() {
 }
 
 // ==========================================
-// USER DATA
+// LOAD USER DATA
 // ==========================================
 async function loadUserData(userId) {
     try {
         const userDoc = await getDoc(doc(db, 'users', userId));
         if (userDoc.exists()) {
             APP.userData = userDoc.data();
-            console.log('User data loaded:', APP.userData.name);
         }
     } catch (error) {
         console.error('Error loading user:', error);
@@ -97,16 +90,11 @@ async function loadUserData(userId) {
 }
 
 // ==========================================
-// EVENT LISTENERS
+// GLOBAL EVENT LISTENERS
 // ==========================================
-function setupEventListeners() {
-    console.log('Setting up event listeners...');
-    
-    // Setup QR Upload listeners
-    setupQRUploadListeners();
-
-    // Navbar scroll effect
-    window.addEventListener('scroll', () => {
+function setupGlobalListeners() {
+    // Navbar scroll
+    window.addEventListener('scroll', function() {
         const navbar = document.getElementById('navbar');
         if (navbar) {
             navbar.classList.toggle('scrolled', window.scrollY > 50);
@@ -114,7 +102,7 @@ function setupEventListeners() {
     });
 
     // Close dropdowns on outside click
-    document.addEventListener('click', (e) => {
+    document.addEventListener('click', function(e) {
         if (!e.target.closest('.user-menu')) {
             const dropdown = document.getElementById('userDropdown');
             if (dropdown) dropdown.classList.remove('active');
@@ -122,106 +110,12 @@ function setupEventListeners() {
     });
 
     // Close modals on overlay click
-    document.querySelectorAll('.modal-overlay').forEach(overlay => {
-        overlay.addEventListener('click', (e) => {
-            if (e.target === overlay) {
-                overlay.classList.remove('active');
-                document.body.style.overflow = '';
-            }
-        });
-    });
-    
-    console.log('Event listeners set up complete');
-}
-
-// ==========================================
-// QR UPLOAD EVENT LISTENERS (FIXED)
-// ==========================================
-function setupQRUploadListeners() {
-    const qrUploadArea = document.getElementById('qrUploadArea');
-    const qrFileInput = document.getElementById('qrFileInput');
-    
-    if (!qrUploadArea) {
-        console.warn('QR Upload area not found - will retry when dashboard loads');
-        return;
-    }
-    
-    if (!qrFileInput) {
-        console.warn('QR File input not found');
-        return;
-    }
-    
-    console.log('Setting up QR upload listeners...');
-    
-    // Remove any existing listeners by cloning
-    const newUploadArea = qrUploadArea.cloneNode(true);
-    qrUploadArea.parentNode.replaceChild(newUploadArea, qrUploadArea);
-    
-    const newFileInput = document.getElementById('qrFileInput');
-    
-    // Click to open file picker
-    newUploadArea.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        console.log('Upload area clicked');
-        
-        if (!APP.currentUser) {
-            showToast('Please sign in first!', 'error');
-            return;
-        }
-        
-        newFileInput.click();
-    });
-    
-    // Drag over effect
-    newUploadArea.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        newUploadArea.classList.add('dragover');
-    });
-    
-    // Drag leave effect
-    newUploadArea.addEventListener('dragleave', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        newUploadArea.classList.remove('dragover');
-    });
-    
-    // Drop files
-    newUploadArea.addEventListener('drop', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        newUploadArea.classList.remove('dragover');
-        
-        console.log('Files dropped');
-        
-        if (!APP.currentUser) {
-            showToast('Please sign in first!', 'error');
-            return;
-        }
-        
-        const files = e.dataTransfer.files;
-        if (files && files.length > 0) {
-            console.log('Dropped files count:', files.length);
-            handleQRFileUpload(files);
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('modal-overlay')) {
+            e.target.classList.remove('active');
+            document.body.style.overflow = '';
         }
     });
-    
-    // File input change
-    newFileInput.addEventListener('change', (e) => {
-        console.log('File input changed');
-        
-        const files = e.target.files;
-        if (files && files.length > 0) {
-            console.log('Selected files count:', files.length);
-            handleQRFileUpload(files);
-        }
-        
-        // Reset input so same file can be selected again
-        e.target.value = '';
-    });
-    
-    console.log('QR upload listeners attached successfully');
 }
 
 // ==========================================
@@ -282,48 +176,49 @@ function updateNavigation() {
 // NAVIGATION
 // ==========================================
 window.navigateTo = function(page) {
-    console.log('Navigating to:', page);
-    
     if (page === 'dashboard' && !APP.currentUser) {
         showToast('Please sign in first!', 'warning');
         openModal('loginModal');
         return;
     }
 
-    document.querySelectorAll('.page-section').forEach(p => p.classList.remove('active'));
+    // Hide all pages
+    document.querySelectorAll('.page-section').forEach(function(p) {
+        p.classList.remove('active');
+    });
     
+    // Show target page
     const target = document.getElementById('page-' + page);
     if (target) target.classList.add('active');
 
-    document.querySelectorAll('.nav-link[data-page]').forEach(link => {
+    // Update nav links
+    document.querySelectorAll('.nav-link[data-page]').forEach(function(link) {
         link.classList.toggle('active', link.dataset.page === page);
     });
 
+    // Close mobile menu
     const navLinks = document.getElementById('navLinks');
     if (navLinks) navLinks.classList.remove('active');
 
+    // Load page content
     if (page === 'dashboard' && APP.currentUser) {
         renderDashboard();
-        // Re-setup QR upload listeners after dashboard renders
-        setTimeout(() => {
-            setupQRUploadListeners();
-        }, 100);
     } else if (page === 'donations') {
         loadPublicCampaigns();
     }
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
-}
+};
 
 window.toggleMobileMenu = function() {
     const navLinks = document.getElementById('navLinks');
     if (navLinks) navLinks.classList.toggle('active');
-}
+};
 
 window.toggleUserDropdown = function() {
     const dropdown = document.getElementById('userDropdown');
     if (dropdown) dropdown.classList.toggle('active');
-}
+};
 
 // ==========================================
 // AUTHENTICATION
@@ -334,7 +229,7 @@ window.handleCreatePage = function() {
     } else {
         openModal('signupModal');
     }
-}
+};
 
 window.handleSignup = async function(e) {
     e.preventDefault();
@@ -361,26 +256,20 @@ window.handleSignup = async function(e) {
         });
         
         closeModal('signupModal');
-        showToast(`Welcome, ${name}!`, 'success');
+        showToast('Welcome, ' + name + '!', 'success');
         e.target.reset();
-        
-        // Refresh creators list
-        loadAllCreators();
+        APP.creatorsLoaded = false;
         
     } catch (error) {
-        console.error('Signup error:', error);
-        
         if (error.code === 'auth/email-already-in-use') {
             showToast('Email already registered!', 'error');
         } else if (error.code === 'auth/weak-password') {
             showToast('Password must be at least 6 characters.', 'error');
-        } else if (error.code === 'auth/invalid-email') {
-            showToast('Invalid email address.', 'error');
         } else {
             showToast('Signup failed. Try again.', 'error');
         }
     }
-}
+};
 
 window.handleLogin = async function(e) {
     e.preventDefault();
@@ -395,17 +284,14 @@ window.handleLogin = async function(e) {
 
     try {
         showToast('Signing in...', 'warning');
-        
         await signInWithEmailAndPassword(auth, email, password);
         closeModal('loginModal');
         showToast('Welcome back!', 'success');
         e.target.reset();
-        
     } catch (error) {
-        console.error('Login error:', error);
         showToast('Invalid email or password!', 'error');
     }
-}
+};
 
 window.handleLogout = async function() {
     try {
@@ -413,10 +299,9 @@ window.handleLogout = async function() {
         showToast('Signed out!', 'success');
         navigateTo('home');
     } catch (error) {
-        console.error('Logout error:', error);
         showToast('Error signing out', 'error');
     }
-}
+};
 
 // ==========================================
 // MODALS
@@ -427,7 +312,7 @@ window.openModal = function(id) {
         modal.classList.add('active');
         document.body.style.overflow = 'hidden';
     }
-}
+};
 
 window.closeModal = function(id) {
     const modal = document.getElementById(id);
@@ -435,40 +320,38 @@ window.closeModal = function(id) {
         modal.classList.remove('active');
         document.body.style.overflow = '';
     }
-}
+};
 
 window.switchAuthModal = function(type) {
     if (type === 'signup') {
         closeModal('loginModal');
-        setTimeout(() => openModal('signupModal'), 200);
+        setTimeout(function() { openModal('signupModal'); }, 200);
     } else {
         closeModal('signupModal');
-        setTimeout(() => openModal('loginModal'), 200);
+        setTimeout(function() { openModal('loginModal'); }, 200);
     }
-}
+};
 
 // ==========================================
 // TOAST NOTIFICATIONS
 // ==========================================
-function showToast(message, type = 'success') {
+function showToast(message, type) {
+    type = type || 'success';
     const container = document.getElementById('toastContainer');
-    if (!container) {
-        console.log('Toast:', type, message);
-        return;
-    }
+    if (!container) return;
     
     const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
+    toast.className = 'toast ' + type;
     
     const icons = { success: '✓', error: '✗', warning: '⏳' };
-    toast.innerHTML = `<span>${icons[type] || '•'}</span><span>${message}</span>`;
+    toast.innerHTML = '<span>' + (icons[type] || '•') + '</span><span>' + message + '</span>';
     
     container.appendChild(toast);
     
-    setTimeout(() => {
+    setTimeout(function() {
         toast.style.opacity = '0';
         toast.style.transform = 'translateX(100%)';
-        setTimeout(() => toast.remove(), 300);
+        setTimeout(function() { toast.remove(); }, 300);
     }, 3000);
 }
 
@@ -476,12 +359,7 @@ function showToast(message, type = 'success') {
 // DASHBOARD
 // ==========================================
 async function renderDashboard() {
-    if (!APP.currentUser || !APP.userData) {
-        console.warn('Cannot render dashboard - user not loaded');
-        return;
-    }
-    
-    console.log('Rendering dashboard...');
+    if (!APP.currentUser || !APP.userData) return;
     
     const profileSection = document.getElementById('profileSection');
     if (profileSection) {
@@ -510,77 +388,75 @@ async function renderDashboard() {
         `;
     }
 
-    await loadUserQRCodes();
-    await loadUserLinks();
-    await loadUserCampaigns();
-    
-    console.log('Dashboard rendered');
+    // Load data
+    loadUserQRCodes();
+    loadUserLinks();
+    loadUserCampaigns();
 }
 
 // ==========================================
-// QR CODES - COMPLETE FIXED VERSION
+// QR UPLOAD - CLICK HANDLER (FIXED)
 // ==========================================
+window.triggerQRUpload = function() {
+    if (!APP.currentUser) {
+        showToast('Please sign in first!', 'error');
+        return;
+    }
+    
+    const fileInput = document.getElementById('qrFileInput');
+    if (fileInput) {
+        fileInput.click();
+    }
+};
 
-// Load user's QR codes
+window.handleQRFileSelect = function(input) {
+    if (input.files && input.files.length > 0) {
+        uploadQRFiles(input.files);
+    }
+    input.value = '';
+};
+
+// ==========================================
+// QR CODES - LOAD
+// ==========================================
 async function loadUserQRCodes() {
+    if (!APP.currentUser) return;
+
     const grid = document.getElementById('qrGrid');
     const empty = document.getElementById('qrEmptyState');
     const count = document.getElementById('qrCount');
     const countStat = document.getElementById('qrCountStat');
 
-    if (!APP.currentUser) {
-        console.warn('Cannot load QR codes - not logged in');
-        return;
-    }
-
-    console.log('Loading QR codes...');
-
     try {
-        const qrCodesRef = collection(db, 'users', APP.currentUser.uid, 'qrCodes');
-        const snapshot = await getDocs(qrCodesRef);
+        const snapshot = await getDocs(collection(db, 'users', APP.currentUser.uid, 'qrCodes'));
         
         const qrCodes = [];
-        snapshot.forEach(docSnap => {
-            const data = docSnap.data();
+        snapshot.forEach(function(docSnap) {
             qrCodes.push({ 
                 id: docSnap.id, 
-                name: data.name || 'QR Code',
-                imageData: data.imageData || '',
-                createdAt: data.createdAt
+                ...docSnap.data()
             });
         });
-        
-        // Sort by createdAt (newest first)
-        qrCodes.sort((a, b) => {
-            const timeA = a.createdAt?.toMillis?.() || 0;
-            const timeB = b.createdAt?.toMillis?.() || 0;
-            return timeB - timeA;
-        });
-
-        console.log('Loaded QR codes:', qrCodes.length);
 
         // Update counts
         if (count) count.textContent = qrCodes.length;
         if (countStat) countStat.textContent = qrCodes.length;
 
-        // Render grid
         if (qrCodes.length === 0) {
             if (grid) grid.innerHTML = '';
             if (empty) empty.style.display = 'block';
         } else {
             if (empty) empty.style.display = 'none';
             if (grid) {
-                grid.innerHTML = qrCodes.map(qr => {
-                    // Escape the imageData for safe onclick
-                    const safeImageData = qr.imageData.replace(/'/g, "\\'");
+                grid.innerHTML = qrCodes.map(function(qr) {
                     return `
                         <div class="glass-card item-card">
-                            <div class="item-card-image" onclick="previewImage('${safeImageData}')">
-                                <img src="${qr.imageData}" alt="${qr.name}" onerror="this.style.display='none'">
+                            <div class="item-card-image" onclick="showQRPreview('${qr.id}')">
+                                <img src="${qr.imageData}" alt="${qr.name || 'QR'}">
                             </div>
-                            <div class="item-card-title">${qr.name}</div>
+                            <div class="item-card-title">${qr.name || 'QR Code'}</div>
                             <div class="item-card-actions">
-                                <button class="btn btn-danger btn-sm" onclick="deleteUserQR('${qr.id}')">Delete</button>
+                                <button class="btn btn-danger btn-sm" onclick="deleteQR('${qr.id}')">Delete</button>
                             </div>
                         </div>
                     `;
@@ -589,243 +465,187 @@ async function loadUserQRCodes() {
         }
     } catch (error) {
         console.error('Error loading QR codes:', error);
-        showToast('Error loading QR codes', 'error');
     }
 }
 
-// Convert file to Base64
-function fileToBase64(file) {
-    return new Promise((resolve, reject) => {
+// ==========================================
+// QR CODES - UPLOAD (FIXED & OPTIMIZED)
+// ==========================================
+async function uploadQRFiles(files) {
+    if (!APP.currentUser) {
+        showToast('Please sign in first!', 'error');
+        return;
+    }
+
+    // Check current count
+    let currentCount = 0;
+    try {
+        const snapshot = await getDocs(collection(db, 'users', APP.currentUser.uid, 'qrCodes'));
+        currentCount = snapshot.size;
+    } catch (e) {
+        console.error('Error checking count:', e);
+    }
+
+    const remaining = 10 - currentCount;
+    if (remaining <= 0) {
+        showToast('Maximum 10 QR codes allowed!', 'warning');
+        return;
+    }
+
+    const filesToUpload = Array.from(files).slice(0, remaining);
+    let uploaded = 0;
+
+    for (let i = 0; i < filesToUpload.length; i++) {
+        const file = filesToUpload[i];
+        
+        // Validate
+        if (!file.type.startsWith('image/')) {
+            showToast(file.name + ' is not an image!', 'error');
+            continue;
+        }
+
+        if (file.size > 5 * 1024 * 1024) {
+            showToast(file.name + ' is too large! Max 5MB.', 'error');
+            continue;
+        }
+
+        showToast('Uploading ' + file.name + '...', 'warning');
+
+        try {
+            // Read file
+            const base64 = await readFileAsBase64(file);
+            
+            // Compress
+            const compressed = await compressImageSimple(base64);
+            
+            // Save
+            await addDoc(collection(db, 'users', APP.currentUser.uid, 'qrCodes'), {
+                name: file.name,
+                imageData: compressed,
+                createdAt: serverTimestamp()
+            });
+            
+            uploaded++;
+        } catch (error) {
+            console.error('Upload error:', error);
+            showToast('Failed to upload ' + file.name, 'error');
+        }
+    }
+
+    if (uploaded > 0) {
+        showToast(uploaded + ' QR code(s) uploaded!', 'success');
+        loadUserQRCodes();
+        APP.creatorsLoaded = false;
+    }
+}
+
+// Read file as Base64
+function readFileAsBase64(file) {
+    return new Promise(function(resolve, reject) {
         const reader = new FileReader();
-        
-        reader.onload = () => {
-            console.log('File converted to Base64');
-            resolve(reader.result);
-        };
-        
-        reader.onerror = (error) => {
-            console.error('FileReader error:', error);
-            reject(new Error('Failed to read file'));
-        };
-        
+        reader.onload = function() { resolve(reader.result); };
+        reader.onerror = function() { reject(new Error('Failed to read file')); };
         reader.readAsDataURL(file);
     });
 }
 
-// Compress image to reduce size
-function compressImage(base64, maxWidth = 400, quality = 0.5) {
-    return new Promise((resolve, reject) => {
+// Simple image compression
+function compressImageSimple(base64) {
+    return new Promise(function(resolve, reject) {
         const img = new Image();
         
-        img.onload = () => {
-            try {
-                const canvas = document.createElement('canvas');
-                let width = img.width;
-                let height = img.height;
-                
-                // Resize if too large
-                if (width > maxWidth) {
-                    height = Math.round((height * maxWidth) / width);
-                    width = maxWidth;
-                }
-                
-                // Also limit height
-                const maxHeight = 400;
-                if (height > maxHeight) {
-                    width = Math.round((width * maxHeight) / height);
-                    height = maxHeight;
-                }
-                
-                canvas.width = width;
-                canvas.height = height;
-                
-                const ctx = canvas.getContext('2d');
-                ctx.fillStyle = '#FFFFFF';
-                ctx.fillRect(0, 0, width, height);
-                ctx.drawImage(img, 0, 0, width, height);
-                
-                // Compress to JPEG
-                const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
-                
-                console.log('Compression done. Size reduced from', 
-                    Math.round(base64.length / 1024), 'KB to', 
-                    Math.round(compressedBase64.length / 1024), 'KB');
-                
-                resolve(compressedBase64);
-            } catch (error) {
-                console.error('Canvas error:', error);
-                reject(new Error('Failed to compress image'));
+        img.onload = function() {
+            const canvas = document.createElement('canvas');
+            const maxSize = 350;
+            
+            let width = img.width;
+            let height = img.height;
+            
+            // Resize
+            if (width > height && width > maxSize) {
+                height = Math.round(height * maxSize / width);
+                width = maxSize;
+            } else if (height > maxSize) {
+                width = Math.round(width * maxSize / height);
+                height = maxSize;
             }
+            
+            canvas.width = width;
+            canvas.height = height;
+            
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, width, height);
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            // Compress
+            let result = canvas.toDataURL('image/jpeg', 0.6);
+            
+            // If still too large, compress more
+            if (result.length > 500000) {
+                result = canvas.toDataURL('image/jpeg', 0.4);
+            }
+            
+            resolve(result);
         };
         
-        img.onerror = () => {
-            console.error('Failed to load image for compression');
-            reject(new Error('Failed to load image'));
-        };
-        
+        img.onerror = function() { reject(new Error('Failed to load image')); };
         img.src = base64;
     });
 }
 
-// Main upload handler
-async function handleQRFileUpload(files) {
-    console.log('=== QR Upload Started ===');
-    console.log('Files to process:', files.length);
-    
-    // Check if user is logged in
-    if (!APP.currentUser) {
-        showToast('Please sign in first!', 'error');
-        return;
-    }
-    
-    // Check if files exist
-    if (!files || files.length === 0) {
-        showToast('No files selected', 'error');
-        return;
-    }
+// Show QR Preview
+window.showQRPreview = async function(qrId) {
+    if (!APP.currentUser) return;
     
     try {
-        // Check current count
-        const qrCodesRef = collection(db, 'users', APP.currentUser.uid, 'qrCodes');
-        const snapshot = await getDocs(qrCodesRef);
-        const currentCount = snapshot.size;
-        const remaining = 10 - currentCount;
-        
-        console.log('Current QR count:', currentCount);
-        console.log('Remaining slots:', remaining);
-        
-        if (remaining <= 0) {
-            showToast('Maximum 10 QR codes allowed!', 'warning');
-            return;
-        }
-
-        // Process files
-        const filesToProcess = Array.from(files).slice(0, remaining);
-        let successCount = 0;
-        
-        for (let i = 0; i < filesToProcess.length; i++) {
-            const file = filesToProcess[i];
-            console.log(`Processing file ${i + 1}/${filesToProcess.length}:`, file.name);
-            
-            // Validate file type
-            if (!file.type.startsWith('image/')) {
-                showToast(`${file.name} is not an image!`, 'error');
-                continue;
-            }
-
-            // Validate file size (max 5MB before compression)
-            if (file.size > 5 * 1024 * 1024) {
-                showToast(`${file.name} is too large! Max 5MB.`, 'error');
-                continue;
-            }
-
-            try {
-                showToast(`Uploading ${file.name}...`, 'warning');
-                
-                // Step 1: Convert to Base64
-                console.log('Step 1: Converting to Base64...');
-                const base64 = await fileToBase64(file);
-                console.log('Base64 size:', Math.round(base64.length / 1024), 'KB');
-                
-                // Step 2: Compress image
-                console.log('Step 2: Compressing...');
-                let compressedImage = await compressImage(base64, 400, 0.5);
-                
-                // Step 3: Check if still too large, compress more
-                if (compressedImage.length > 800000) {
-                    console.log('Still large, compressing more...');
-                    compressedImage = await compressImage(base64, 300, 0.3);
-                }
-                
-                // Step 4: Final size check
-                if (compressedImage.length > 900000) {
-                    showToast(`${file.name} is too large even after compression`, 'error');
-                    continue;
-                }
-                
-                // Step 5: Save to Firestore
-                console.log('Step 3: Saving to Firestore...');
-                const docRef = await addDoc(qrCodesRef, {
-                    name: file.name,
-                    imageData: compressedImage,
-                    createdAt: serverTimestamp()
-                });
-                
-                console.log('Saved with ID:', docRef.id);
-                successCount++;
-                
-            } catch (error) {
-                console.error('Error processing file:', file.name, error);
-                showToast(`Failed to upload ${file.name}`, 'error');
+        const qrDoc = await getDoc(doc(db, 'users', APP.currentUser.uid, 'qrCodes', qrId));
+        if (qrDoc.exists()) {
+            const data = qrDoc.data();
+            const previewImg = document.getElementById('previewImage');
+            if (previewImg) {
+                previewImg.src = data.imageData;
+                openModal('imagePreviewModal');
             }
         }
-        
-        // Show success message
-        if (successCount > 0) {
-            showToast(`${successCount} QR code(s) uploaded!`, 'success');
-        }
-        
-        // Reload QR codes
-        console.log('Reloading QR codes...');
-        await loadUserQRCodes();
-        
-        // Refresh creators list
-        loadAllCreators();
-        
-        console.log('=== QR Upload Complete ===');
-        
     } catch (error) {
-        console.error('Upload error:', error);
-        showToast('Upload failed. Please try again.', 'error');
+        console.error('Preview error:', error);
     }
-}
+};
 
-// Delete QR code
-window.deleteUserQR = async function(docId) {
+// Delete QR
+window.deleteQR = async function(qrId) {
     if (!confirm('Delete this QR code?')) return;
-    
-    if (!APP.currentUser) {
-        showToast('Please sign in first!', 'error');
-        return;
-    }
+    if (!APP.currentUser) return;
     
     try {
-        console.log('Deleting QR code:', docId);
-        await deleteDoc(doc(db, 'users', APP.currentUser.uid, 'qrCodes', docId));
+        await deleteDoc(doc(db, 'users', APP.currentUser.uid, 'qrCodes', qrId));
         showToast('QR code deleted!', 'success');
-        await loadUserQRCodes();
-        loadAllCreators();
+        loadUserQRCodes();
+        APP.creatorsLoaded = false;
     } catch (error) {
         console.error('Delete error:', error);
         showToast('Delete failed', 'error');
     }
-}
+};
 
 // ==========================================
 // LINKS
 // ==========================================
 async function loadUserLinks() {
+    if (!APP.currentUser) return;
+
     const list = document.getElementById('linksList');
     const empty = document.getElementById('linksEmptyState');
     const count = document.getElementById('linksCount');
     const countStat = document.getElementById('linksCountStat');
 
-    if (!APP.currentUser) return;
-
     try {
-        const linksRef = collection(db, 'users', APP.currentUser.uid, 'links');
-        const snapshot = await getDocs(linksRef);
+        const snapshot = await getDocs(collection(db, 'users', APP.currentUser.uid, 'links'));
         
         const links = [];
-        snapshot.forEach(docSnap => {
+        snapshot.forEach(function(docSnap) {
             links.push({ id: docSnap.id, ...docSnap.data() });
-        });
-        
-        // Sort by createdAt
-        links.sort((a, b) => {
-            const timeA = a.createdAt?.toMillis?.() || 0;
-            const timeB = b.createdAt?.toMillis?.() || 0;
-            return timeB - timeA;
         });
 
         if (count) count.textContent = links.length;
@@ -837,18 +657,20 @@ async function loadUserLinks() {
         } else {
             if (empty) empty.style.display = 'none';
             if (list) {
-                list.innerHTML = links.map(link => `
-                    <div class="glass-card link-item">
-                        <div class="link-icon">${link.icon || '🔗'}</div>
-                        <div class="link-info">
-                            <h4>${link.title}</h4>
-                            <a href="${link.url}" target="_blank">${link.url}</a>
+                list.innerHTML = links.map(function(link) {
+                    return `
+                        <div class="glass-card link-item">
+                            <div class="link-icon">${link.icon || '🔗'}</div>
+                            <div class="link-info">
+                                <h4>${link.title}</h4>
+                                <a href="${link.url}" target="_blank">${link.url}</a>
+                            </div>
+                            <div class="link-actions">
+                                <button class="btn btn-danger btn-sm" onclick="deleteLink('${link.id}')">Delete</button>
+                            </div>
                         </div>
-                        <div class="link-actions">
-                            <button class="btn btn-danger btn-sm" onclick="deleteUserLink('${link.id}')">Delete</button>
-                        </div>
-                    </div>
-                `).join('');
+                    `;
+                }).join('');
             }
         }
     } catch (error) {
@@ -858,39 +680,28 @@ async function loadUserLinks() {
 
 window.handleAddLink = async function(e) {
     e.preventDefault();
+    if (!APP.currentUser) return;
     
-    if (!APP.currentUser) {
-        showToast('Please sign in first!', 'error');
-        return;
-    }
-    
-    const titleInput = document.getElementById('linkTitle');
-    const urlInput = document.getElementById('linkUrl');
-    const iconInput = document.getElementById('linkIcon');
-    
-    if (!titleInput || !urlInput) return;
-    
-    const title = titleInput.value.trim();
-    const url = urlInput.value.trim();
-    const icon = iconInput ? iconInput.value.trim() || '🔗' : '🔗';
+    const title = document.getElementById('linkTitle').value.trim();
+    const url = document.getElementById('linkUrl').value.trim();
+    const icon = document.getElementById('linkIcon').value.trim() || '🔗';
     
     if (!title || !url) {
         showToast('Please fill all fields', 'error');
         return;
     }
     
-    try {
-        const linksRef = collection(db, 'users', APP.currentUser.uid, 'links');
-        const snapshot = await getDocs(linksRef);
-        
-        if (snapshot.size >= 10) {
-            showToast('Maximum 10 links allowed!', 'warning');
-            return;
-        }
+    // Check count
+    const snapshot = await getDocs(collection(db, 'users', APP.currentUser.uid, 'links'));
+    if (snapshot.size >= 10) {
+        showToast('Maximum 10 links allowed!', 'warning');
+        return;
+    }
 
+    try {
         showToast('Adding link...', 'warning');
         
-        await addDoc(linksRef, {
+        await addDoc(collection(db, 'users', APP.currentUser.uid, 'links'), {
             title: title,
             url: url,
             icon: icon,
@@ -900,57 +711,46 @@ window.handleAddLink = async function(e) {
         closeModal('addLinkModal');
         showToast('Link added!', 'success');
         e.target.reset();
-        if (iconInput) iconInput.value = '🔗';
-        await loadUserLinks();
-        loadAllCreators();
-        
+        document.getElementById('linkIcon').value = '🔗';
+        loadUserLinks();
+        APP.creatorsLoaded = false;
     } catch (error) {
-        console.error('Error adding link:', error);
+        console.error('Error:', error);
         showToast('Failed to add link', 'error');
     }
-}
+};
 
-window.deleteUserLink = async function(docId) {
+window.deleteLink = async function(linkId) {
     if (!confirm('Delete this link?')) return;
-    
     if (!APP.currentUser) return;
     
     try {
-        await deleteDoc(doc(db, 'users', APP.currentUser.uid, 'links', docId));
+        await deleteDoc(doc(db, 'users', APP.currentUser.uid, 'links', linkId));
         showToast('Link deleted!', 'success');
-        await loadUserLinks();
-        loadAllCreators();
+        loadUserLinks();
+        APP.creatorsLoaded = false;
     } catch (error) {
-        console.error('Delete error:', error);
         showToast('Delete failed', 'error');
     }
-}
+};
 
 // ==========================================
 // CAMPAIGNS
 // ==========================================
 async function loadUserCampaigns() {
+    if (!APP.currentUser) return;
+
     const grid = document.getElementById('campaignsGrid');
     const empty = document.getElementById('campaignsEmptyState');
     const count = document.getElementById('campaignsCount');
     const countStat = document.getElementById('campaignsCountStat');
 
-    if (!APP.currentUser) return;
-
     try {
-        const campaignsRef = collection(db, 'users', APP.currentUser.uid, 'campaigns');
-        const snapshot = await getDocs(campaignsRef);
+        const snapshot = await getDocs(collection(db, 'users', APP.currentUser.uid, 'campaigns'));
         
         const campaigns = [];
-        snapshot.forEach(docSnap => {
+        snapshot.forEach(function(docSnap) {
             campaigns.push({ id: docSnap.id, ...docSnap.data() });
-        });
-        
-        // Sort by createdAt
-        campaigns.sort((a, b) => {
-            const timeA = a.createdAt?.toMillis?.() || 0;
-            const timeB = b.createdAt?.toMillis?.() || 0;
-            return timeB - timeA;
         });
 
         if (count) count.textContent = campaigns.length;
@@ -962,20 +762,22 @@ async function loadUserCampaigns() {
         } else {
             if (empty) empty.style.display = 'none';
             if (grid) {
-                grid.innerHTML = campaigns.map(c => `
-                    <div class="glass-card campaign-card">
-                        <div class="campaign-image">${getPlatformIcon(c.platform)}</div>
-                        <h3 class="campaign-title">${c.title}</h3>
-                        <p class="campaign-description">${c.description}</p>
-                        <div class="campaign-footer">
-                            <span class="campaign-platform">${c.platform}</span>
-                            <div style="display: flex; gap: 0.5rem;">
-                                <a href="${c.url}" target="_blank" class="btn btn-primary btn-sm">Visit →</a>
-                                <button class="btn btn-danger btn-sm" onclick="deleteUserCampaign('${c.id}')">Delete</button>
+                grid.innerHTML = campaigns.map(function(c) {
+                    return `
+                        <div class="glass-card campaign-card">
+                            <div class="campaign-image">${getPlatformIcon(c.platform)}</div>
+                            <h3 class="campaign-title">${c.title}</h3>
+                            <p class="campaign-description">${c.description}</p>
+                            <div class="campaign-footer">
+                                <span class="campaign-platform">${c.platform}</span>
+                                <div style="display: flex; gap: 0.5rem;">
+                                    <a href="${c.url}" target="_blank" class="btn btn-primary btn-sm">Visit →</a>
+                                    <button class="btn btn-danger btn-sm" onclick="deleteCampaign('${c.id}')">Delete</button>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                `).join('');
+                    `;
+                }).join('');
             }
         }
     } catch (error) {
@@ -985,23 +787,12 @@ async function loadUserCampaigns() {
 
 window.handleAddCampaign = async function(e) {
     e.preventDefault();
+    if (!APP.currentUser) return;
     
-    if (!APP.currentUser) {
-        showToast('Please sign in first!', 'error');
-        return;
-    }
-    
-    const titleInput = document.getElementById('campaignTitle');
-    const urlInput = document.getElementById('campaignUrl');
-    const platformInput = document.getElementById('campaignPlatform');
-    const descInput = document.getElementById('campaignDescription');
-    
-    if (!titleInput || !urlInput || !platformInput || !descInput) return;
-    
-    const title = titleInput.value.trim();
-    const url = urlInput.value.trim();
-    const platform = platformInput.value;
-    const description = descInput.value.trim();
+    const title = document.getElementById('campaignTitle').value.trim();
+    const url = document.getElementById('campaignUrl').value.trim();
+    const platform = document.getElementById('campaignPlatform').value;
+    const description = document.getElementById('campaignDescription').value.trim();
     
     if (!title || !url || !platform || !description) {
         showToast('Please fill all fields', 'error');
@@ -1011,9 +802,7 @@ window.handleAddCampaign = async function(e) {
     try {
         showToast('Adding campaign...', 'warning');
         
-        const campaignsRef = collection(db, 'users', APP.currentUser.uid, 'campaigns');
-        
-        await addDoc(campaignsRef, {
+        await addDoc(collection(db, 'users', APP.currentUser.uid, 'campaigns'), {
             title: title,
             url: url,
             platform: platform,
@@ -1024,32 +813,28 @@ window.handleAddCampaign = async function(e) {
         closeModal('addCampaignModal');
         showToast('Campaign added!', 'success');
         e.target.reset();
-        await loadUserCampaigns();
-        loadPublicCampaigns();
-        loadAllCreators();
-        
+        loadUserCampaigns();
+        APP.creatorsLoaded = false;
     } catch (error) {
-        console.error('Error adding campaign:', error);
+        console.error('Error:', error);
         showToast('Failed to add campaign', 'error');
     }
-}
+};
 
-window.deleteUserCampaign = async function(docId) {
+window.deleteCampaign = async function(campaignId) {
     if (!confirm('Delete this campaign?')) return;
-    
     if (!APP.currentUser) return;
     
     try {
-        await deleteDoc(doc(db, 'users', APP.currentUser.uid, 'campaigns', docId));
+        await deleteDoc(doc(db, 'users', APP.currentUser.uid, 'campaigns', campaignId));
         showToast('Campaign deleted!', 'success');
-        await loadUserCampaigns();
+        loadUserCampaigns();
         loadPublicCampaigns();
-        loadAllCreators();
+        APP.creatorsLoaded = false;
     } catch (error) {
-        console.error('Delete error:', error);
         showToast('Delete failed', 'error');
     }
-}
+};
 
 function getPlatformIcon(platform) {
     const icons = {
@@ -1068,7 +853,6 @@ function getPlatformIcon(platform) {
 async function loadPublicCampaigns() {
     const grid = document.getElementById('publicCampaignsGrid');
     const empty = document.getElementById('publicCampaignsEmpty');
-
     if (!grid) return;
 
     try {
@@ -1079,19 +863,14 @@ async function loadPublicCampaigns() {
             const userData = userDoc.data();
             
             try {
-                const campaignsSnapshot = await getDocs(
-                    collection(db, 'users', userDoc.id, 'campaigns')
-                );
-                
-                campaignsSnapshot.forEach(docSnap => {
+                const campSnapshot = await getDocs(collection(db, 'users', userDoc.id, 'campaigns'));
+                campSnapshot.forEach(function(docSnap) {
                     allCampaigns.push({
                         ...docSnap.data(),
                         creator: userData.name || 'Anonymous'
                     });
                 });
-            } catch (err) {
-                // Skip if can't read campaigns
-            }
+            } catch (e) {}
         }
 
         if (allCampaigns.length === 0) {
@@ -1099,23 +878,25 @@ async function loadPublicCampaigns() {
             if (empty) empty.style.display = 'block';
         } else {
             if (empty) empty.style.display = 'none';
-            grid.innerHTML = allCampaigns.map(c => `
-                <div class="glass-card campaign-card">
-                    <div class="campaign-image">${getPlatformIcon(c.platform)}</div>
-                    <h3 class="campaign-title">${c.title}</h3>
-                    <p class="campaign-description">${c.description}</p>
-                    <div class="campaign-footer">
-                        <div>
-                            <span class="campaign-platform">${c.platform}</span>
-                            <span style="color: var(--text-muted); font-size: 0.8rem;"> by ${c.creator}</span>
+            grid.innerHTML = allCampaigns.map(function(c) {
+                return `
+                    <div class="glass-card campaign-card">
+                        <div class="campaign-image">${getPlatformIcon(c.platform)}</div>
+                        <h3 class="campaign-title">${c.title}</h3>
+                        <p class="campaign-description">${c.description}</p>
+                        <div class="campaign-footer">
+                            <div>
+                                <span class="campaign-platform">${c.platform}</span>
+                                <span style="color: var(--text-muted); font-size: 0.8rem;"> by ${c.creator}</span>
+                            </div>
+                            <a href="${c.url}" target="_blank" class="btn btn-primary btn-sm">Support →</a>
                         </div>
-                        <a href="${c.url}" target="_blank" class="btn btn-primary btn-sm">Support →</a>
                     </div>
-                </div>
-            `).join('');
+                `;
+            }).join('');
         }
     } catch (error) {
-        console.error('Error loading public campaigns:', error);
+        console.error('Error:', error);
     }
 }
 
@@ -1123,260 +904,195 @@ async function loadPublicCampaigns() {
 // TAB SWITCHING
 // ==========================================
 window.switchDashboardTab = function(tab) {
-    document.querySelectorAll('#dashboardTabs .tab-btn').forEach(btn => {
+    document.querySelectorAll('#dashboardTabs .tab-btn').forEach(function(btn) {
         btn.classList.toggle('active', btn.dataset.tab === tab);
     });
-    document.querySelectorAll('#page-dashboard .tab-content').forEach(content => {
+    document.querySelectorAll('#page-dashboard .tab-content').forEach(function(content) {
         content.classList.toggle('active', content.id === 'tab-' + tab);
     });
-    
-    // Re-setup QR listeners when switching to QR tab
-    if (tab === 'qr-codes') {
-        setTimeout(() => {
-            setupQRUploadListeners();
-        }, 100);
-    }
-}
+};
 
 // ==========================================
 // IMAGE PREVIEW
 // ==========================================
 window.previewImage = function(src) {
-    const previewImg = document.getElementById('previewImage');
-    if (previewImg && src) {
-        previewImg.src = src;
+    const img = document.getElementById('previewImage');
+    if (img && src) {
+        img.src = src;
         openModal('imagePreviewModal');
     }
-}
+};
 
 // ==========================================
-// SEARCH FUNCTIONALITY
+// SEARCH (LAZY LOAD - OPTIMIZED)
 // ==========================================
 let searchTimeout = null;
-let allCreators = [];
 
-// Load all creators for search
-async function loadAllCreators() {
-    try {
-        console.log('Loading all creators...');
-        const usersSnapshot = await getDocs(collection(db, 'users'));
-        allCreators = [];
-        
-        for (const userDoc of usersSnapshot.docs) {
-            const userData = userDoc.data();
-            
-            let qrCount = 0;
-            let linksCount = 0;
-            let campaignsCount = 0;
-            
-            try {
-                const qrSnapshot = await getDocs(collection(db, 'users', userDoc.id, 'qrCodes'));
-                qrCount = qrSnapshot.size;
-            } catch (e) {}
-            
-            try {
-                const linksSnapshot = await getDocs(collection(db, 'users', userDoc.id, 'links'));
-                linksCount = linksSnapshot.size;
-            } catch (e) {}
-            
-            try {
-                const campaignsSnapshot = await getDocs(collection(db, 'users', userDoc.id, 'campaigns'));
-                campaignsCount = campaignsSnapshot.size;
-            } catch (e) {}
-            
-            allCreators.push({
-                id: userDoc.id,
-                name: userData.name || 'Anonymous',
-                email: userData.email || '',
-                qrCount: qrCount,
-                linksCount: linksCount,
-                campaignsCount: campaignsCount
-            });
-        }
-        
-        console.log('Loaded creators:', allCreators.length);
-    } catch (error) {
-        console.error('Error loading creators:', error);
-    }
-}
-
-// Search handler
-window.handleSearch = function(searchTerm) {
+window.handleSearch = function(term) {
     clearTimeout(searchTimeout);
-    
-    searchTimeout = setTimeout(async () => {
-        await performSearch(searchTerm.trim().toLowerCase());
-    }, 300);
-}
+    searchTimeout = setTimeout(function() {
+        doSearch(term.trim().toLowerCase());
+    }, 400);
+};
 
-// Perform search
-async function performSearch(searchTerm) {
-    const resultsContainer = document.getElementById('searchResults');
-    if (!resultsContainer) return;
+async function doSearch(term) {
+    const results = document.getElementById('searchResults');
+    if (!results) return;
     
-    if (!searchTerm) {
-        resultsContainer.innerHTML = '';
+    if (!term) {
+        results.innerHTML = '';
         return;
     }
     
     // Load creators if not loaded
-    if (allCreators.length === 0) {
-        resultsContainer.innerHTML = '<div class="search-no-results"><div class="icon">⏳</div><p>Searching...</p></div>';
-        await loadAllCreators();
+    if (!APP.creatorsLoaded) {
+        results.innerHTML = '<div class="search-no-results"><div class="icon">⏳</div><p>Loading...</p></div>';
+        await loadCreators();
     }
     
-    // Filter creators
-    const results = allCreators.filter(creator => 
-        creator.name.toLowerCase().includes(searchTerm) ||
-        creator.email.toLowerCase().includes(searchTerm)
-    );
+    // Filter
+    const matches = APP.creators.filter(function(c) {
+        return c.name.toLowerCase().includes(term);
+    });
     
-    // Display results
-    if (results.length === 0) {
-        resultsContainer.innerHTML = `
-            <div class="search-no-results">
-                <div class="icon">🔍</div>
-                <p>No creators found for "${searchTerm}"</p>
-            </div>
-        `;
+    if (matches.length === 0) {
+        results.innerHTML = '<div class="search-no-results"><div class="icon">🔍</div><p>No creators found</p></div>';
     } else {
-        resultsContainer.innerHTML = results.map(creator => `
-            <div class="creator-card" onclick="openCreatorProfile('${creator.id}')">
-                <div class="creator-header">
-                    <div class="creator-avatar">${creator.name.charAt(0).toUpperCase()}</div>
-                    <div class="creator-info">
-                        <h3>${creator.name}</h3>
-                        <div class="creator-stats">
-                            <span class="creator-stat">📱 <span class="count">${creator.qrCount}</span> QR</span>
-                            <span class="creator-stat">🔗 <span class="count">${creator.linksCount}</span> Links</span>
-                            <span class="creator-stat">🚀 <span class="count">${creator.campaignsCount}</span> Campaigns</span>
+        results.innerHTML = matches.map(function(c) {
+            return `
+                <div class="creator-card" onclick="viewCreator('${c.id}')">
+                    <div class="creator-header">
+                        <div class="creator-avatar">${c.name.charAt(0).toUpperCase()}</div>
+                        <div class="creator-info">
+                            <h3>${c.name}</h3>
+                            <div class="creator-stats">
+                                <span class="creator-stat">📱 ${c.qr}</span>
+                                <span class="creator-stat">🔗 ${c.links}</span>
+                                <span class="creator-stat">🚀 ${c.camps}</span>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
     }
 }
 
-// Open creator profile
-window.openCreatorProfile = async function(creatorId) {
-    const profileContent = document.getElementById('creatorProfileContent');
-    const profileAvatar = document.getElementById('creatorProfileAvatar');
-    const profileName = document.getElementById('creatorProfileName');
-    const profileEmail = document.getElementById('creatorProfileEmail');
-    
-    if (!profileContent) {
-        showToast('Profile modal not found', 'error');
-        return;
+async function loadCreators() {
+    try {
+        const snapshot = await getDocs(collection(db, 'users'));
+        APP.creators = [];
+        
+        for (const userDoc of snapshot.docs) {
+            const data = userDoc.data();
+            
+            let qr = 0, links = 0, camps = 0;
+            try { qr = (await getDocs(collection(db, 'users', userDoc.id, 'qrCodes'))).size; } catch(e) {}
+            try { links = (await getDocs(collection(db, 'users', userDoc.id, 'links'))).size; } catch(e) {}
+            try { camps = (await getDocs(collection(db, 'users', userDoc.id, 'campaigns'))).size; } catch(e) {}
+            
+            APP.creators.push({
+                id: userDoc.id,
+                name: data.name || 'Anonymous',
+                qr: qr,
+                links: links,
+                camps: camps
+            });
+        }
+        
+        APP.creatorsLoaded = true;
+    } catch (error) {
+        console.error('Error:', error);
     }
+}
+
+window.viewCreator = async function(id) {
+    const content = document.getElementById('creatorProfileContent');
+    const avatar = document.getElementById('creatorProfileAvatar');
+    const name = document.getElementById('creatorProfileName');
+    const email = document.getElementById('creatorProfileEmail');
     
-    // Show loading
-    profileContent.innerHTML = '<div class="empty-section">Loading profile...</div>';
+    if (!content) return;
+    
+    content.innerHTML = '<div class="empty-section">Loading...</div>';
     openModal('creatorProfileModal');
     
     try {
-        // Get creator data
-        const creatorDoc = await getDoc(doc(db, 'users', creatorId));
-        
-        if (!creatorDoc.exists()) {
-            profileContent.innerHTML = '<div class="empty-section">Creator not found</div>';
+        const userDoc = await getDoc(doc(db, 'users', id));
+        if (!userDoc.exists()) {
+            content.innerHTML = '<div class="empty-section">Creator not found</div>';
             return;
         }
         
-        const creatorData = creatorDoc.data();
-        
-        // Update header
-        if (profileAvatar) profileAvatar.textContent = (creatorData.name || 'A').charAt(0).toUpperCase();
-        if (profileName) profileName.textContent = creatorData.name || 'Anonymous';
-        if (profileEmail) profileEmail.textContent = creatorData.email || '';
+        const data = userDoc.data();
+        if (avatar) avatar.textContent = (data.name || 'A').charAt(0).toUpperCase();
+        if (name) name.textContent = data.name || 'Anonymous';
+        if (email) email.textContent = data.email || '';
         
         // Load data
-        let qrCodes = [];
-        let links = [];
-        let campaigns = [];
+        let qrCodes = [], links = [], campaigns = [];
         
         try {
-            const qrSnapshot = await getDocs(collection(db, 'users', creatorId, 'qrCodes'));
-            qrSnapshot.forEach(docSnap => qrCodes.push({ id: docSnap.id, ...docSnap.data() }));
-        } catch (e) {}
+            const qrSnap = await getDocs(collection(db, 'users', id, 'qrCodes'));
+            qrSnap.forEach(function(d) { qrCodes.push(d.data()); });
+        } catch(e) {}
         
         try {
-            const linksSnapshot = await getDocs(collection(db, 'users', creatorId, 'links'));
-            linksSnapshot.forEach(docSnap => links.push({ id: docSnap.id, ...docSnap.data() }));
-        } catch (e) {}
+            const linksSnap = await getDocs(collection(db, 'users', id, 'links'));
+            linksSnap.forEach(function(d) { links.push(d.data()); });
+        } catch(e) {}
         
         try {
-            const campaignsSnapshot = await getDocs(collection(db, 'users', creatorId, 'campaigns'));
-            campaignsSnapshot.forEach(docSnap => campaigns.push({ id: docSnap.id, ...docSnap.data() }));
-        } catch (e) {}
+            const campSnap = await getDocs(collection(db, 'users', id, 'campaigns'));
+            campSnap.forEach(function(d) { campaigns.push(d.data()); });
+        } catch(e) {}
         
-        // Build content
-        let contentHTML = '';
+        // Build HTML
+        let html = '';
         
         // QR Codes
-        contentHTML += `
-            <div class="creator-section">
-                <h4>📱 QR Codes (${qrCodes.length})</h4>
-                ${qrCodes.length > 0 ? `
-                    <div class="creator-qr-grid">
-                        ${qrCodes.map(qr => `
-                            <div class="creator-qr-item" onclick="previewImage('${(qr.imageData || '').replace(/'/g, "\\'")}')">
-                                <img src="${qr.imageData || ''}" alt="${qr.name || 'QR'}" onerror="this.style.display='none'">
-                                <p>${qr.name || 'QR Code'}</p>
-                            </div>
-                        `).join('')}
-                    </div>
-                ` : '<div class="empty-section">No QR codes added yet</div>'}
-            </div>
-        `;
+        html += '<div class="creator-section"><h4>📱 QR Codes (' + qrCodes.length + ')</h4>';
+        if (qrCodes.length > 0) {
+            html += '<div class="creator-qr-grid">';
+            qrCodes.forEach(function(qr) {
+                html += '<div class="creator-qr-item"><img src="' + qr.imageData + '" alt="QR"><p>' + (qr.name || 'QR') + '</p></div>';
+            });
+            html += '</div>';
+        } else {
+            html += '<div class="empty-section">No QR codes</div>';
+        }
+        html += '</div>';
         
         // Links
-        contentHTML += `
-            <div class="creator-section">
-                <h4>🔗 Support Links (${links.length})</h4>
-                ${links.length > 0 ? `
-                    <div class="creator-links-list">
-                        ${links.map(link => `
-                            <a href="${link.url}" target="_blank" rel="noopener" class="creator-link-item">
-                                <span class="creator-link-icon">${link.icon || '🔗'}</span>
-                                <div class="creator-link-info">
-                                    <h5>${link.title || 'Link'}</h5>
-                                    <span>${link.url}</span>
-                                </div>
-                            </a>
-                        `).join('')}
-                    </div>
-                ` : '<div class="empty-section">No support links added yet</div>'}
-            </div>
-        `;
+        html += '<div class="creator-section"><h4>🔗 Links (' + links.length + ')</h4>';
+        if (links.length > 0) {
+            html += '<div class="creator-links-list">';
+            links.forEach(function(link) {
+                html += '<a href="' + link.url + '" target="_blank" class="creator-link-item"><span class="creator-link-icon">' + (link.icon || '🔗') + '</span><div class="creator-link-info"><h5>' + link.title + '</h5><span>' + link.url + '</span></div></a>';
+            });
+            html += '</div>';
+        } else {
+            html += '<div class="empty-section">No links</div>';
+        }
+        html += '</div>';
         
         // Campaigns
-        contentHTML += `
-            <div class="creator-section">
-                <h4>🚀 Campaigns (${campaigns.length})</h4>
-                ${campaigns.length > 0 ? `
-                    <div class="creator-campaigns-list">
-                        ${campaigns.map(c => `
-                            <div class="creator-campaign-item">
-                                <h5>${getPlatformIcon(c.platform)} ${c.title || 'Campaign'}</h5>
-                                <p>${c.description || ''}</p>
-                                <a href="${c.url}" target="_blank" rel="noopener">Support this campaign →</a>
-                            </div>
-                        `).join('')}
-                    </div>
-                ` : '<div class="empty-section">No campaigns added yet</div>'}
-            </div>
-        `;
+        html += '<div class="creator-section"><h4>🚀 Campaigns (' + campaigns.length + ')</h4>';
+        if (campaigns.length > 0) {
+            html += '<div class="creator-campaigns-list">';
+            campaigns.forEach(function(c) {
+                html += '<div class="creator-campaign-item"><h5>' + getPlatformIcon(c.platform) + ' ' + c.title + '</h5><p>' + c.description + '</p><a href="' + c.url + '" target="_blank">Support →</a></div>';
+            });
+            html += '</div>';
+        } else {
+            html += '<div class="empty-section">No campaigns</div>';
+        }
+        html += '</div>';
         
-        profileContent.innerHTML = contentHTML;
+        content.innerHTML = html;
         
     } catch (error) {
-        console.error('Error loading creator profile:', error);
-        profileContent.innerHTML = '<div class="empty-section">Error loading profile. Please try again.</div>';
+        console.error('Error:', error);
+        content.innerHTML = '<div class="empty-section">Error loading profile</div>';
     }
-}
-
-// ==========================================
-// START APP
-// ==========================================
-document.addEventListener('DOMContentLoaded', init);
+};
