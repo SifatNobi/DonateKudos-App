@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="DonateKudos - Support Creators Instantly via QR & Links">
+    <meta name="keywords" content="donate, support, creators, QR code, donations, crowdfunding">
+    <title>DonateKudos - Support Creators Instantly</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Background Effects -->
+    <div class="bg-grid"></div>
+    <div class="bg-glow bg-glow-1"></div>
+    <div class="bg-glow bg-glow-2"></div>
+
+    <!-- Navigation -->
+    <nav id="navbar">
+        <div class="nav-container">
+            <div class="logo" onclick="navigateTo('home')">
+                <div class="logo-icon">💝</div>
+                <span>DonateKudos</span>
+            </div>
+            
+            <button class="mobile-menu-btn" onclick="toggleMobileMenu()" aria-label="Toggle menu">☰</button>
+
+            <div class="nav-links" id="navLinks">
+                <button class="nav-link active" data-page="home" onclick="navigateTo('home')">Home</button>
+                <button class="nav-link" data-page="donations" onclick="navigateTo('donations')">Donations</button>
+                <button class="nav-link" data-page="support-site" onclick="navigateTo('support-site')">Support Site</button>
+                <div id="authNav"></div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main>
+        <!-- ========== HOME PAGE ========== -->
+        <section id="page-home" class="page-section active">
+            <div class="hero">
+                <div class="hero-badge">✨ New: Instant QR Support Links</div>
+                <h1 class="hero-title">
+                    Support Creators<br>
+                    <span class="highlight">Instantly via QR & Links</span>
+                </h1>
+                <p class="hero-subtitle">
+                    Create your personal support page in seconds. Share QR codes and links 
+                    so your supporters can contribute through their favorite payment methods.
+                </p>
+                
+                <div class="hero-cta">
+                    <button class="btn btn-primary btn-lg btn-glow" onclick="handleCreatePage()">
+                        ✨ Create Your Page
+                    </button>
+                    <div class="hero-secondary-actions" id="heroAuthButtons">
+                        <!-- Dynamic auth buttons -->
+                    </div>
+                </div>
+
+                <div class="features-grid">
+                    <div class="glass-card feature-card">
+                        <div class="feature-icon">📱</div>
+                        <h3>QR Code Support</h3>
+                        <p>Upload payment QR codes from any platform - Wise, PayPal, Venmo, crypto wallets, and more.</p>
+                    </div>
+                    <div class="glass-card feature-card">
+                        <div class="feature-icon">🔗</div>
+                        <h3>External Links</h3>
+                        <p>Add direct links to your payment profiles and let supporters choose their preferred method.</p>
+                    </div>
+                    <div class="glass-card feature-card">
+                        <div class="feature-icon">🚀</div>
+                        <h3>Campaign Links</h3>
+                        <p>Promote your Kickstarter, GoFundMe, or other crowdfunding campaigns in one place.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========== DASHBOARD (GET SUPPORT) ========== -->
+        <section id="page-dashboard" class="page-section">
+            <div class="container">
+                <div class="profile-section" id="profileSection"></div>
+
+                <div class="tabs" id="dashboardTabs">
+                    <button class="tab-btn active" data-tab="qr-codes" onclick="switchDashboardTab('qr-codes')">
+                        📱 QR Codes <span class="counter-badge" id="qrCount">0</span>
+                    </button>
+                    <button class="tab-btn" data-tab="links" onclick="switchDashboardTab('links')">
+                        🔗 Support Links <span class="counter-badge" id="linksCount">0</span>
+                    </button>
+                    <button class="tab-btn" data-tab="campaigns" onclick="switchDashboardTab('campaigns')">
+                        🚀 Campaigns <span class="counter-badge" id="campaignsCount">0</span>
+                    </button>
+                </div>
+
+                <!-- QR Codes Tab -->
+                <div class="tab-content active" id="tab-qr-codes">
+                    <div class="upload-area" id="qrUploadArea" onclick="document.getElementById('qrFileInput').click()">
+                        <div class="upload-icon">📷</div>
+                        <h3>Upload QR Codes</h3>
+                        <p>Drag & drop images or click to browse (Max 10 images)</p>
+                        <input type="file" id="qrFileInput" accept="image/*" multiple hidden>
+                    </div>
+                    <div class="items-grid" id="qrGrid"></div>
+                    <div class="empty-state" id="qrEmptyState" style="display: none;">
+                        <div class="empty-state-icon">📷</div>
+                        <h3>No QR codes yet</h3>
+                        <p>Upload your payment QR codes to get started</p>
+                    </div>
+                </div>
+
+                <!-- Support Links Tab -->
+                <div class="tab-content" id="tab-links">
+                    <div class="dashboard-header">
+                        <h2>Your Support Links</h2>
+                        <button class="btn btn-primary" onclick="openModal('addLinkModal')">+ Add Link</button>
+                    </div>
+                    <div class="links-list" id="linksList"></div>
+                    <div class="empty-state" id="linksEmptyState" style="display: none;">
+                        <div class="empty-state-icon">🔗</div>
+                        <h3>No links yet</h3>
+                        <p>Add your payment links so supporters can find you</p>
+                    </div>
+                </div>
+
+                <!-- Campaigns Tab -->
+                <div class="tab-content" id="tab-campaigns">
+                    <div class="dashboard-header">
+                        <h2>External Campaigns</h2>
+                        <button class="btn btn-primary" onclick="openModal('addCampaignModal')">+ Add Campaign</button>
+                    </div>
+                    <div class="campaigns-grid" id="campaignsGrid"></div>
+                    <div class="empty-state" id="campaignsEmptyState" style="display: none;">
+                        <div class="empty-state-icon">🚀</div>
+                        <h3>No campaigns yet</h3>
+                        <p>Link your external crowdfunding campaigns here</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========== DONATIONS PAGE ========== -->
+        <section id="page-donations" class="page-section">
+            <div class="container">
+                <div class="support-page" style="min-height: auto; padding-top: 0;">
+                    <div class="support-icon">🎯</div>
+                    <h1 class="support-title">Support Campaigns</h1>
+                    <p class="support-message" style="font-size: 1.1rem;">
+                        Discover and support external crowdfunding campaigns from creators on DonateKudos. All links redirect to external platforms.
+                    </p>
+                </div>
+                <div class="campaigns-grid" id="publicCampaignsGrid"></div>
+                <div class="empty-state" id="publicCampaignsEmpty" style="display: none;">
+                    <div class="empty-state-icon">🎯</div>
+                    <h3>No public campaigns yet</h3>
+                    <p>Check back soon for exciting projects to support!</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========== SUPPORT THE SITE PAGE ========== -->
+        <section id="page-support-site" class="page-section">
+            <div class="container">
+                <div class="support-page">
+                    <div class="support-icon">💝</div>
+                    <h1 class="support-title">Support DonateKudos</h1>
+                    <p class="support-message">Thank you for your support!</p>
+                    
+                    <div class="glass-card support-card">
+                        <div class="patreon-logo">🎨</div>
+                        <h3>Support Us on Patreon</h3>
+                        <p>Your contributions help us maintain and improve DonateKudos for creators worldwide. Every bit of support makes a difference!</p>
+                        <a href="https://www.patreon.com/c/MisterImaginative/posts" target="_blank" rel="noopener noreferrer" class="btn btn-patreon btn-glow">
+                            ❤️ Support on Patreon
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- ========== MODALS ========== -->
+
+    <!-- Login Modal -->
+    <div class="modal-overlay" id="loginModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>👋 Welcome Back</h2>
+                <button class="modal-close" onclick="closeModal('loginModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="loginForm" onsubmit="handleLogin(event)">
+                    <div class="form-group">
+                        <label for="loginEmail">Email</label>
+                        <input type="email" id="loginEmail" class="form-input" placeholder="your@email.com" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="loginPassword">Password</label>
+                        <input type="password" id="loginPassword" class="form-input" placeholder="••••••••" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">Sign In</button>
+                </form>
+                <p class="text-center mt-2" style="color: var(--text-secondary);">
+                    Don't have an account? 
+                    <a href="#" onclick="switchAuthModal('signup')" style="color: var(--neon-blue);">Sign up</a>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Signup Modal -->
+    <div class="modal-overlay" id="signupModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>✨ Create Account</h2>
+                <button class="modal-close" onclick="closeModal('signupModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="signupForm" onsubmit="handleSignup(event)">
+                    <div class="form-group">
+                        <label for="signupName">Display Name</label>
+                        <input type="text" id="signupName" class="form-input" placeholder="Your name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="signupEmail">Email</label>
+                        <input type="email" id="signupEmail" class="form-input" placeholder="your@email.com" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="signupPassword">Password</label>
+                        <input type="password" id="signupPassword" class="form-input" placeholder="••••••••" required minlength="6">
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">Create Account</button>
+                </form>
+                <p class="text-center mt-2" style="color: var(--text-secondary);">
+                    Already have an account? 
+                    <a href="#" onclick="switchAuthModal('login')" style="color: var(--neon-blue);">Sign in</a>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Link Modal -->
+    <div class="modal-overlay" id="addLinkModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>🔗 Add Support Link</h2>
+                <button class="modal-close" onclick="closeModal('addLinkModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="addLinkForm" onsubmit="handleAddLink(event)">
+                    <div class="form-group">
+                        <label for="linkTitle">Title</label>
+                        <input type="text" id="linkTitle" class="form-input" placeholder="e.g., PayPal, Wise, Bitcoin" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="linkUrl">URL</label>
+                        <input type="url" id="linkUrl" class="form-input" placeholder="https://..." required>
+                    </div>
+                    <div class="form-group">
+                        <label for="linkIcon">Icon (emoji)</label>
+                        <input type="text" id="linkIcon" class="form-input" placeholder="💳" maxlength="4" value="🔗">
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">Add Link</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Campaign Modal -->
+    <div class="modal-overlay" id="addCampaignModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>🚀 Add Campaign</h2>
+                <button class="modal-close" onclick="closeModal('addCampaignModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="addCampaignForm" onsubmit="handleAddCampaign(event)">
+                    <div class="form-group">
+                        <label for="campaignTitle">Campaign Title</label>
+                        <input type="text" id="campaignTitle" class="form-input" placeholder="My Awesome Project" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="campaignUrl">Campaign URL</label>
+                        <input type="url" id="campaignUrl" class="form-input" placeholder="https://kickstarter.com/..." required>
+                    </div>
+                    <div class="form-group">
+                        <label for="campaignPlatform">Platform</label>
+                        <select id="campaignPlatform" class="form-input form-select" required>
+                            <option value="">Select platform</option>
+                            <option value="kickstarter">Kickstarter</option>
+                            <option value="gofundme">GoFundMe</option>
+                            <option value="indiegogo">Indiegogo</option>
+                            <option value="patreon">Patreon</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="campaignDescription">Description</label>
+                        <textarea id="campaignDescription" class="form-input" placeholder="Tell supporters about your campaign..." required></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">Add Campaign</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Image Preview Modal -->
+    <div class="modal-overlay" id="imagePreviewModal" onclick="closeModal('imagePreviewModal')">
+        <div class="image-preview-modal" onclick="event.stopPropagation()">
+            <button class="image-preview-close" onclick="closeModal('imagePreviewModal')">&times;</button>
+            <img id="previewImage" src="" alt="QR Code Preview">
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- JavaScript -->
+    <script src="script.js"></script>
+</body>
+</html>
