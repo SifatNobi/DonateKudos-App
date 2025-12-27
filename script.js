@@ -57,6 +57,7 @@ function init() {
     setupAuthListener();
     setupEventListeners();
     loadPublicCampaigns();
+    loadAllCreators();
 }
 
 // ==========================================
@@ -265,6 +266,7 @@ window.handleSignup = async function(e) {
         closeModal('signupModal');
         showToast(`Welcome, ${name}!`, 'success');
         e.target.reset();
+        loadAllCreators();
         
     } catch (error) {
         console.error('Signup error:', error);
@@ -512,6 +514,7 @@ async function handleFileUpload(files) {
     }
     
     loadUserQRCodes();
+    loadAllCreators();
 }
 
 window.deleteUserQR = async function(docId) {
@@ -521,6 +524,7 @@ window.deleteUserQR = async function(docId) {
         await deleteDoc(doc(db, 'users', APP.currentUser.uid, 'qrCodes', docId));
         showToast('QR code deleted!', 'success');
         loadUserQRCodes();
+        loadAllCreators();
     } catch (error) {
         console.error('Delete error:', error);
         showToast('Delete failed', 'error');
@@ -598,6 +602,7 @@ window.handleAddLink = async function(e) {
         e.target.reset();
         document.getElementById('linkIcon').value = '🔗';
         loadUserLinks();
+        loadAllCreators();
         
     } catch (error) {
         console.error('Error adding link:', error);
@@ -612,6 +617,7 @@ window.deleteUserLink = async function(docId) {
         await deleteDoc(doc(db, 'users', APP.currentUser.uid, 'links', docId));
         showToast('Link deleted!', 'success');
         loadUserLinks();
+        loadAllCreators();
     } catch (error) {
         showToast('Delete failed', 'error');
     }
@@ -685,6 +691,7 @@ window.handleAddCampaign = async function(e) {
         e.target.reset();
         loadUserCampaigns();
         loadPublicCampaigns();
+        loadAllCreators();
         
     } catch (error) {
         console.error('Error adding campaign:', error);
@@ -700,6 +707,7 @@ window.deleteUserCampaign = async function(docId) {
         showToast('Campaign deleted!', 'success');
         loadUserCampaigns();
         loadPublicCampaigns();
+        loadAllCreators();
     } catch (error) {
         showToast('Delete failed', 'error');
     }
@@ -784,6 +792,186 @@ window.switchDashboardTab = function(tab) {
 window.previewImage = function(src) {
     document.getElementById('previewImage').src = src;
     openModal('imagePreviewModal');
+}
+
+// ==========================================
+// SEARCH FUNCTIONALITY
+// ==========================================
+let searchTimeout = null;
+let allCreators = [];
+
+async function loadAllCreators() {
+    try {
+        const usersSnapshot = await getDocs(collection(db, 'users'));
+        allCreators = [];
+        
+        for (const userDoc of usersSnapshot.docs) {
+            const userData = userDoc.data();
+            
+            const qrSnapshot = await getDocs(collection(db, 'users', userDoc.id, 'qrCodes'));
+            const linksSnapshot = await getDocs(collection(db, 'users', userDoc.id, 'links'));
+            const campaignsSnapshot = await getDocs(collection(db, 'users', userDoc.id, 'campaigns'));
+            
+            allCreators.push({
+                id: userDoc.id,
+                name: userData.name || 'Anonymous',
+                email: userData.email || '',
+                qrCount: qrSnapshot.size,
+                linksCount: linksSnapshot.size,
+                campaignsCount: campaignsSnapshot.size
+            });
+        }
+    } catch (error) {
+        console.error('Error loading creators:', error);
+    }
+}
+
+window.handleSearch = function(searchTerm) {
+    clearTimeout(searchTimeout);
+    
+    searchTimeout = setTimeout(() => {
+        performSearch(searchTerm.trim().toLowerCase());
+    }, 300);
+}
+
+async function performSearch(searchTerm) {
+    const resultsContainer = document.getElementById('searchResults');
+    
+    if (!searchTerm) {
+        resultsContainer.innerHTML = '';
+        return;
+    }
+    
+    if (allCreators.length === 0) {
+        resultsContainer.innerHTML = '<div class="search-no-results"><div class="icon">⏳</div><p>Searching...</p></div>';
+        await loadAllCreators();
+    }
+    
+    const results = allCreators.filter(creator => 
+        creator.name.toLowerCase().includes(searchTerm) ||
+        creator.email.toLowerCase().includes(searchTerm)
+    );
+    
+    if (results.length === 0) {
+        resultsContainer.innerHTML = `
+            <div class="search-no-results">
+                <div class="icon">🔍</div>
+                <p>No creators found for "${searchTerm}"</p>
+            </div>
+        `;
+    } else {
+        resultsContainer.innerHTML = results.map(creator => `
+            <div class="creator-card" onclick="openCreatorProfile('${creator.id}')">
+                <div class="creator-header">
+                    <div class="creator-avatar">${creator.name.charAt(0).toUpperCase()}</div>
+                    <div class="creator-info">
+                        <h3>${creator.name}</h3>
+                        <div class="creator-stats">
+                            <span class="creator-stat">📱 <span class="count">${creator.qrCount}</span> QR</span>
+                            <span class="creator-stat">🔗 <span class="count">${creator.linksCount}</span> Links</span>
+                            <span class="creator-stat">🚀 <span class="count">${creator.campaignsCount}</span> Campaigns</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+}
+
+window.openCreatorProfile = async function(creatorId) {
+    try {
+        const creatorDoc = await getDoc(doc(db, 'users', creatorId));
+        if (!creatorDoc.exists()) {
+            showToast('Creator not found', 'error');
+            return;
+        }
+        
+        const creatorData = creatorDoc.data();
+        
+        document.getElementById('creatorProfileAvatar').textContent = creatorData.name.charAt(0).toUpperCase();
+        document.getElementById('creatorProfileName').textContent = creatorData.name;
+        document.getElementById('creatorProfileEmail').textContent = creatorData.email;
+        
+        const qrSnapshot = await getDocs(
+            query(collection(db, 'users', creatorId, 'qrCodes'), orderBy('createdAt', 'desc'))
+        );
+        const qrCodes = [];
+        qrSnapshot.forEach(doc => qrCodes.push({ id: doc.id, ...doc.data() }));
+        
+        const linksSnapshot = await getDocs(
+            query(collection(db, 'users', creatorId, 'links'), orderBy('createdAt', 'desc'))
+        );
+        const links = [];
+        linksSnapshot.forEach(doc => links.push({ id: doc.id, ...doc.data() }));
+        
+        const campaignsSnapshot = await getDocs(
+            query(collection(db, 'users', creatorId, 'campaigns'), orderBy('createdAt', 'desc'))
+        );
+        const campaigns = [];
+        campaignsSnapshot.forEach(doc => campaigns.push({ id: doc.id, ...doc.data() }));
+        
+        let contentHTML = '';
+        
+        contentHTML += `
+            <div class="creator-section">
+                <h4>📱 QR Codes (${qrCodes.length})</h4>
+                ${qrCodes.length > 0 ? `
+                    <div class="creator-qr-grid">
+                        ${qrCodes.map(qr => `
+                            <div class="creator-qr-item" onclick="previewImage('${qr.imageData}')">
+                                <img src="${qr.imageData}" alt="${qr.name}">
+                                <p>${qr.name}</p>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : '<div class="empty-section">No QR codes added yet</div>'}
+            </div>
+        `;
+        
+        contentHTML += `
+            <div class="creator-section">
+                <h4>🔗 Support Links (${links.length})</h4>
+                ${links.length > 0 ? `
+                    <div class="creator-links-list">
+                        ${links.map(link => `
+                            <a href="${link.url}" target="_blank" rel="noopener" class="creator-link-item">
+                                <span class="creator-link-icon">${link.icon || '🔗'}</span>
+                                <div class="creator-link-info">
+                                    <h5>${link.title}</h5>
+                                    <span>${link.url}</span>
+                                </div>
+                            </a>
+                        `).join('')}
+                    </div>
+                ` : '<div class="empty-section">No support links added yet</div>'}
+            </div>
+        `;
+        
+        contentHTML += `
+            <div class="creator-section">
+                <h4>🚀 Campaigns (${campaigns.length})</h4>
+                ${campaigns.length > 0 ? `
+                    <div class="creator-campaigns-list">
+                        ${campaigns.map(c => `
+                            <div class="creator-campaign-item">
+                                <h5>${getPlatformIcon(c.platform)} ${c.title}</h5>
+                                <p>${c.description}</p>
+                                <a href="${c.url}" target="_blank" rel="noopener">Support this campaign →</a>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : '<div class="empty-section">No campaigns added yet</div>'}
+            </div>
+        `;
+        
+        document.getElementById('creatorProfileContent').innerHTML = contentHTML;
+        
+        openModal('creatorProfileModal');
+        
+    } catch (error) {
+        console.error('Error loading creator profile:', error);
+        showToast('Error loading profile', 'error');
+    }
 }
 
 // ==========================================
