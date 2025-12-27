@@ -1,40 +1,92 @@
 // ==========================================
-// APPLICATION STATE
+// FIREBASE IMPORTS
+// ==========================================
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { 
+    getAuth, 
+    createUserWithEmailAndPassword,
+    signInWithEmailAndPassword,
+    signOut,
+    onAuthStateChanged,
+    updateProfile
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { 
+    getFirestore,
+    collection,
+    doc,
+    setDoc,
+    getDoc,
+    getDocs,
+    addDoc,
+    deleteDoc,
+    query,
+    orderBy,
+    serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+// ==========================================
+// YOUR FIREBASE CONFIG
+// ==========================================
+const firebaseConfig = {
+    apiKey: "AIzaSyBm5_P7L85paQ53Gt6e8FxY36j9A5EV9Ag",
+    authDomain: "donatekudos-app-b6d3b.firebaseapp.com",
+    projectId: "donatekudos-app-b6d3b",
+    storageBucket: "donatekudos-app-b6d3b.firebasestorage.app",
+    messagingSenderId: "220214029300",
+    appId: "1:220214029300:web:d9a9e3b438b51f4047e7a1",
+    measurementId: "G-GR057X8BD8"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+// ==========================================
+// APP STATE
 // ==========================================
 const APP = {
     currentUser: null,
-    users: {}
+    userData: null
 };
 
 // ==========================================
-// INITIALIZATION
+// INITIALIZE
 // ==========================================
 function init() {
-    loadState();
-    updateNavigation();
-    updateHomePageAuth();
+    setupAuthListener();
     setupEventListeners();
-    renderPublicCampaigns();
+    loadPublicCampaigns();
 }
 
-function loadState() {
+// ==========================================
+// AUTH LISTENER
+// ==========================================
+function setupAuthListener() {
+    onAuthStateChanged(auth, async (user) => {
+        if (user) {
+            APP.currentUser = user;
+            await loadUserData(user.uid);
+        } else {
+            APP.currentUser = null;
+            APP.userData = null;
+        }
+        updateNavigation();
+        updateHomePageAuth();
+    });
+}
+
+// ==========================================
+// USER DATA
+// ==========================================
+async function loadUserData(userId) {
     try {
-        const users = localStorage.getItem('dk_users');
-        const current = localStorage.getItem('dk_current');
-
-        if (users) APP.users = JSON.parse(users);
-        if (current) APP.currentUser = JSON.parse(current);
-    } catch (e) {
-        console.error('Error loading state:', e);
-    }
-}
-
-function saveState() {
-    localStorage.setItem('dk_users', JSON.stringify(APP.users));
-    if (APP.currentUser) {
-        localStorage.setItem('dk_current', JSON.stringify(APP.currentUser));
-    } else {
-        localStorage.removeItem('dk_current');
+        const userDoc = await getDoc(doc(db, 'users', userId));
+        if (userDoc.exists()) {
+            APP.userData = userDoc.data();
+        }
+    } catch (error) {
+        console.error('Error loading user:', error);
     }
 }
 
@@ -42,7 +94,6 @@ function saveState() {
 // EVENT LISTENERS
 // ==========================================
 function setupEventListeners() {
-    // QR Upload
     const qrUploadArea = document.getElementById('qrUploadArea');
     const qrFileInput = document.getElementById('qrFileInput');
     
@@ -68,12 +119,10 @@ function setupEventListeners() {
         });
     }
 
-    // Navbar scroll effect
     window.addEventListener('scroll', () => {
         document.getElementById('navbar').classList.toggle('scrolled', window.scrollY > 50);
     });
 
-    // Close dropdowns on outside click
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.user-menu')) {
             const dropdown = document.getElementById('userDropdown');
@@ -81,7 +130,6 @@ function setupEventListeners() {
         }
     });
 
-    // Close modals on overlay click
     document.querySelectorAll('.modal-overlay').forEach(overlay => {
         overlay.addEventListener('click', (e) => {
             if (e.target === overlay) {
@@ -93,10 +141,11 @@ function setupEventListeners() {
 }
 
 // ==========================================
-// HOME PAGE AUTH STATE
+// UPDATE UI
 // ==========================================
 function updateHomePageAuth() {
     const heroAuthButtons = document.getElementById('heroAuthButtons');
+    if (!heroAuthButtons) return;
 
     if (APP.currentUser) {
         heroAuthButtons.innerHTML = `
@@ -112,63 +161,19 @@ function updateHomePageAuth() {
     }
 }
 
-// ==========================================
-// NAVIGATION
-// ==========================================
-function navigateTo(page) {
-    if (page === 'dashboard') {
-        if (!APP.currentUser) {
-            showToast('Please sign in first!', 'warning');
-            openModal('loginModal');
-            return;
-        }
-    }
-
-    // Hide all pages
-    document.querySelectorAll('.page-section').forEach(p => p.classList.remove('active'));
-    
-    // Show target page
-    const target = document.getElementById('page-' + page);
-    if (target) {
-        target.classList.add('active');
-    }
-
-    // Update nav links
-    document.querySelectorAll('.nav-link[data-page]').forEach(link => {
-        link.classList.toggle('active', link.dataset.page === page);
-    });
-
-    // Close mobile menu
-    document.getElementById('navLinks').classList.remove('active');
-
-    // Render page content
-    if (page === 'home') {
-        updateHomePageAuth();
-    } else if (page === 'dashboard' && APP.currentUser) {
-        renderDashboard();
-    } else if (page === 'donations') {
-        renderPublicCampaigns();
-    }
-
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-function toggleMobileMenu() {
-    document.getElementById('navLinks').classList.toggle('active');
-}
-
 function updateNavigation() {
     const authNav = document.getElementById('authNav');
+    if (!authNav) return;
     
-    if (APP.currentUser) {
+    if (APP.currentUser && APP.userData) {
         authNav.innerHTML = `
             <button class="nav-link" data-page="dashboard" onclick="navigateTo('dashboard')">
                 📊 Get Support
             </button>
             <div class="user-menu">
                 <button class="user-menu-btn" onclick="toggleUserDropdown()">
-                    <div class="user-avatar">${APP.currentUser.name.charAt(0).toUpperCase()}</div>
-                    <span>${APP.currentUser.name}</span>
+                    <div class="user-avatar">${APP.userData.name.charAt(0).toUpperCase()}</div>
+                    <span>${APP.userData.name}</span>
                 </button>
                 <div class="user-dropdown" id="userDropdown">
                     <button class="user-dropdown-item" onclick="navigateTo('dashboard')">
@@ -189,14 +194,48 @@ function updateNavigation() {
     }
 }
 
-function toggleUserDropdown() {
+// ==========================================
+// NAVIGATION
+// ==========================================
+window.navigateTo = function(page) {
+    if (page === 'dashboard' && !APP.currentUser) {
+        showToast('Please sign in first!', 'warning');
+        openModal('loginModal');
+        return;
+    }
+
+    document.querySelectorAll('.page-section').forEach(p => p.classList.remove('active'));
+    
+    const target = document.getElementById('page-' + page);
+    if (target) target.classList.add('active');
+
+    document.querySelectorAll('.nav-link[data-page]').forEach(link => {
+        link.classList.toggle('active', link.dataset.page === page);
+    });
+
+    document.getElementById('navLinks').classList.remove('active');
+
+    if (page === 'dashboard' && APP.currentUser) {
+        renderDashboard();
+    } else if (page === 'donations') {
+        loadPublicCampaigns();
+    }
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+window.toggleMobileMenu = function() {
+    document.getElementById('navLinks').classList.toggle('active');
+}
+
+window.toggleUserDropdown = function() {
     document.getElementById('userDropdown').classList.toggle('active');
 }
 
 // ==========================================
 // AUTHENTICATION
 // ==========================================
-function handleCreatePage() {
+window.handleCreatePage = function() {
     if (APP.currentUser) {
         navigateTo('dashboard');
     } else {
@@ -204,82 +243,86 @@ function handleCreatePage() {
     }
 }
 
-function handleSignup(e) {
+window.handleSignup = async function(e) {
     e.preventDefault();
     
     const name = document.getElementById('signupName').value.trim();
     const email = document.getElementById('signupEmail').value.trim().toLowerCase();
     const password = document.getElementById('signupPassword').value;
 
-    if (APP.users[email]) {
-        showToast('Email already registered!', 'error');
-        return;
+    try {
+        showToast('Creating account...', 'warning');
+        
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        await updateProfile(userCredential.user, { displayName: name });
+        
+        await setDoc(doc(db, 'users', userCredential.user.uid), {
+            name: name,
+            email: email,
+            createdAt: serverTimestamp()
+        });
+        
+        closeModal('signupModal');
+        showToast(`Welcome, ${name}!`, 'success');
+        e.target.reset();
+        
+    } catch (error) {
+        console.error('Signup error:', error);
+        
+        if (error.code === 'auth/email-already-in-use') {
+            showToast('Email already registered!', 'error');
+        } else if (error.code === 'auth/weak-password') {
+            showToast('Password must be at least 6 characters.', 'error');
+        } else {
+            showToast('Signup failed. Try again.', 'error');
+        }
     }
-
-    APP.users[email] = {
-        email,
-        password,
-        name,
-        qrCodes: [],
-        links: [],
-        campaigns: []
-    };
-
-    APP.currentUser = APP.users[email];
-    saveState();
-    closeModal('signupModal');
-    updateNavigation();
-    updateHomePageAuth();
-    showToast(`Welcome, ${name}!`, 'success');
-    navigateTo('dashboard');
-    e.target.reset();
 }
 
-function handleLogin(e) {
+window.handleLogin = async function(e) {
     e.preventDefault();
     
     const email = document.getElementById('loginEmail').value.trim().toLowerCase();
     const password = document.getElementById('loginPassword').value;
-    const user = APP.users[email];
 
-    if (!user || user.password !== password) {
+    try {
+        showToast('Signing in...', 'warning');
+        
+        await signInWithEmailAndPassword(auth, email, password);
+        closeModal('loginModal');
+        showToast('Welcome back!', 'success');
+        e.target.reset();
+        
+    } catch (error) {
+        console.error('Login error:', error);
         showToast('Invalid email or password!', 'error');
-        return;
     }
-
-    APP.currentUser = user;
-    saveState();
-    closeModal('loginModal');
-    updateNavigation();
-    updateHomePageAuth();
-    showToast(`Welcome back, ${user.name}!`, 'success');
-    navigateTo('dashboard');
-    e.target.reset();
 }
 
-function handleLogout() {
-    APP.currentUser = null;
-    saveState();
-    updateNavigation();
-    updateHomePageAuth();
-    showToast('Signed out successfully!', 'success');
-    navigateTo('home');
+window.handleLogout = async function() {
+    try {
+        await signOut(auth);
+        showToast('Signed out!', 'success');
+        navigateTo('home');
+    } catch (error) {
+        showToast('Error signing out', 'error');
+    }
 }
 
 // ==========================================
 // MODALS
 // ==========================================
-function openModal(id) {
+window.openModal = function(id) {
     document.getElementById(id).classList.add('active');
     document.body.style.overflow = 'hidden';
 }
 
-function closeModal(id) {
+window.closeModal = function(id) {
     document.getElementById(id).classList.remove('active');
     document.body.style.overflow = '';
 }
 
-function switchAuthModal(type) {
+window.switchAuthModal = function(type) {
     if (type === 'signup') {
         closeModal('loginModal');
         setTimeout(() => openModal('signupModal'), 200);
@@ -290,17 +333,18 @@ function switchAuthModal(type) {
 }
 
 // ==========================================
-// TOAST NOTIFICATIONS
+// TOAST
 // ==========================================
 function showToast(message, type = 'success') {
     const container = document.getElementById('toastContainer');
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
     
-    const icons = { success: '✓', error: '✗', warning: '⚠' };
+    const icons = { success: '✓', error: '✗', warning: '⏳' };
     toast.innerHTML = `<span>${icons[type] || '•'}</span><span>${message}</span>`;
     
     container.appendChild(toast);
+    
     setTimeout(() => {
         toast.style.opacity = '0';
         toast.style.transform = 'translateX(100%)';
@@ -309,121 +353,355 @@ function showToast(message, type = 'success') {
 }
 
 // ==========================================
-// DASHBOARD RENDERING
+// DASHBOARD
 // ==========================================
-function renderDashboard() {
-    if (!APP.currentUser) return;
+async function renderDashboard() {
+    if (!APP.currentUser || !APP.userData) return;
     
-    const user = APP.users[APP.currentUser.email];
-    
-    // Profile Section
     document.getElementById('profileSection').innerHTML = `
         <div class="profile-header">
-            <div class="profile-avatar">${user.name.charAt(0).toUpperCase()}</div>
+            <div class="profile-avatar">${APP.userData.name.charAt(0).toUpperCase()}</div>
             <div class="profile-info">
-                <h2>${user.name}</h2>
-                <p>${user.email}</p>
+                <h2>${APP.userData.name}</h2>
+                <p>${APP.userData.email}</p>
             </div>
         </div>
         <div class="profile-stats">
             <div class="stat-item">
-                <div class="stat-value">${user.qrCodes.length}</div>
+                <div class="stat-value" id="qrCountStat">0</div>
                 <div class="stat-label">QR Codes</div>
             </div>
             <div class="stat-item">
-                <div class="stat-value">${user.links.length}</div>
+                <div class="stat-value" id="linksCountStat">0</div>
                 <div class="stat-label">Links</div>
             </div>
             <div class="stat-item">
-                <div class="stat-value">${user.campaigns.length}</div>
+                <div class="stat-value" id="campaignsCountStat">0</div>
                 <div class="stat-label">Campaigns</div>
             </div>
         </div>
     `;
 
-    // Update counters
-    document.getElementById('qrCount').textContent = user.qrCodes.length;
-    document.getElementById('linksCount').textContent = user.links.length;
-    document.getElementById('campaignsCount').textContent = user.campaigns.length;
-
-    renderUserQRCodes();
-    renderUserLinks();
-    renderUserCampaigns();
+    await loadUserQRCodes();
+    await loadUserLinks();
+    await loadUserCampaigns();
 }
 
-function renderUserQRCodes() {
-    const user = APP.users[APP.currentUser.email];
+// ==========================================
+// QR CODES (Base64 - No Storage Needed)
+// ==========================================
+async function loadUserQRCodes() {
     const grid = document.getElementById('qrGrid');
     const empty = document.getElementById('qrEmptyState');
+    const count = document.getElementById('qrCount');
+    const countStat = document.getElementById('qrCountStat');
 
-    if (user.qrCodes.length === 0) {
-        grid.innerHTML = '';
-        empty.style.display = 'block';
-    } else {
-        empty.style.display = 'none';
-        grid.innerHTML = user.qrCodes.map((qr, i) => `
-            <div class="glass-card item-card">
-                <div class="item-card-image" onclick="previewImage('${qr.data}')">
-                    <img src="${qr.data}" alt="${qr.name}">
-                </div>
-                <div class="item-card-title">${qr.name}</div>
-                <div class="item-card-actions">
-                    <button class="btn btn-danger btn-sm" onclick="deleteUserQR(${i})">Delete</button>
-                </div>
-            </div>
-        `).join('');
-    }
-}
+    try {
+        const q = query(
+            collection(db, 'users', APP.currentUser.uid, 'qrCodes'),
+            orderBy('createdAt', 'desc')
+        );
+        const snapshot = await getDocs(q);
+        
+        const qrCodes = [];
+        snapshot.forEach(doc => qrCodes.push({ id: doc.id, ...doc.data() }));
 
-function renderUserLinks() {
-    const user = APP.users[APP.currentUser.email];
-    const list = document.getElementById('linksList');
-    const empty = document.getElementById('linksEmptyState');
+        if (count) count.textContent = qrCodes.length;
+        if (countStat) countStat.textContent = qrCodes.length;
 
-    if (user.links.length === 0) {
-        list.innerHTML = '';
-        empty.style.display = 'block';
-    } else {
-        empty.style.display = 'none';
-        list.innerHTML = user.links.map((link, i) => `
-            <div class="glass-card link-item">
-                <div class="link-icon">${link.icon}</div>
-                <div class="link-info">
-                    <h4>${link.title}</h4>
-                    <a href="${link.url}" target="_blank">${link.url}</a>
-                </div>
-                <div class="link-actions">
-                    <button class="btn btn-danger btn-sm" onclick="deleteUserLink(${i})">Delete</button>
-                </div>
-            </div>
-        `).join('');
-    }
-}
-
-function renderUserCampaigns() {
-    const user = APP.users[APP.currentUser.email];
-    const grid = document.getElementById('campaignsGrid');
-    const empty = document.getElementById('campaignsEmptyState');
-
-    if (user.campaigns.length === 0) {
-        grid.innerHTML = '';
-        empty.style.display = 'block';
-    } else {
-        empty.style.display = 'none';
-        grid.innerHTML = user.campaigns.map((c, i) => `
-            <div class="glass-card campaign-card">
-                <div class="campaign-image">${getPlatformIcon(c.platform)}</div>
-                <h3 class="campaign-title">${c.title}</h3>
-                <p class="campaign-description">${c.description}</p>
-                <div class="campaign-footer">
-                    <span class="campaign-platform">${c.platform}</span>
-                    <div style="display: flex; gap: 0.5rem;">
-                        <a href="${c.url}" target="_blank" class="btn btn-primary btn-sm">Visit →</a>
-                        <button class="btn btn-danger btn-sm" onclick="deleteUserCampaign(${i})">Delete</button>
+        if (qrCodes.length === 0) {
+            grid.innerHTML = '';
+            empty.style.display = 'block';
+        } else {
+            empty.style.display = 'none';
+            grid.innerHTML = qrCodes.map(qr => `
+                <div class="glass-card item-card">
+                    <div class="item-card-image" onclick="previewImage('${qr.imageData}')">
+                        <img src="${qr.imageData}" alt="${qr.name}">
+                    </div>
+                    <div class="item-card-title">${qr.name}</div>
+                    <div class="item-card-actions">
+                        <button class="btn btn-danger btn-sm" onclick="deleteUserQR('${qr.id}')">Delete</button>
                     </div>
                 </div>
-            </div>
-        `).join('');
+            `).join('');
+        }
+    } catch (error) {
+        console.error('Error loading QR codes:', error);
+        showToast('Error loading QR codes', 'error');
+    }
+}
+
+function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
+
+function compressImage(base64, maxWidth = 500) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
+            
+            if (width > maxWidth) {
+                height = (height * maxWidth) / width;
+                width = maxWidth;
+            }
+            
+            canvas.width = width;
+            canvas.height = height;
+            
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            resolve(canvas.toDataURL('image/jpeg', 0.7));
+        };
+        img.src = base64;
+    });
+}
+
+async function handleFileUpload(files) {
+    if (!APP.currentUser) {
+        showToast('Please sign in first!', 'error');
+        return;
+    }
+    
+    const snapshot = await getDocs(collection(db, 'users', APP.currentUser.uid, 'qrCodes'));
+    const remaining = 10 - snapshot.size;
+    
+    if (remaining <= 0) {
+        showToast('Maximum 10 QR codes allowed!', 'warning');
+        return;
+    }
+
+    for (const file of Array.from(files).slice(0, remaining)) {
+        if (!file.type.startsWith('image/')) {
+            showToast(`${file.name} is not an image!`, 'error');
+            continue;
+        }
+
+        if (file.size > 2 * 1024 * 1024) {
+            showToast(`${file.name} is too large! Max 2MB.`, 'error');
+            continue;
+        }
+
+        try {
+            showToast('Uploading...', 'warning');
+            
+            const base64 = await fileToBase64(file);
+            const compressedImage = await compressImage(base64);
+            
+            await addDoc(collection(db, 'users', APP.currentUser.uid, 'qrCodes'), {
+                name: file.name,
+                imageData: compressedImage,
+                createdAt: serverTimestamp()
+            });
+            
+            showToast('QR code uploaded!', 'success');
+            
+        } catch (error) {
+            console.error('Upload error:', error);
+            showToast('Upload failed', 'error');
+        }
+    }
+    
+    loadUserQRCodes();
+}
+
+window.deleteUserQR = async function(docId) {
+    if (!confirm('Delete this QR code?')) return;
+    
+    try {
+        await deleteDoc(doc(db, 'users', APP.currentUser.uid, 'qrCodes', docId));
+        showToast('QR code deleted!', 'success');
+        loadUserQRCodes();
+    } catch (error) {
+        console.error('Delete error:', error);
+        showToast('Delete failed', 'error');
+    }
+}
+
+// ==========================================
+// LINKS
+// ==========================================
+async function loadUserLinks() {
+    const list = document.getElementById('linksList');
+    const empty = document.getElementById('linksEmptyState');
+    const count = document.getElementById('linksCount');
+    const countStat = document.getElementById('linksCountStat');
+
+    try {
+        const q = query(
+            collection(db, 'users', APP.currentUser.uid, 'links'),
+            orderBy('createdAt', 'desc')
+        );
+        const snapshot = await getDocs(q);
+        
+        const links = [];
+        snapshot.forEach(doc => links.push({ id: doc.id, ...doc.data() }));
+
+        if (count) count.textContent = links.length;
+        if (countStat) countStat.textContent = links.length;
+
+        if (links.length === 0) {
+            list.innerHTML = '';
+            empty.style.display = 'block';
+        } else {
+            empty.style.display = 'none';
+            list.innerHTML = links.map(link => `
+                <div class="glass-card link-item">
+                    <div class="link-icon">${link.icon || '🔗'}</div>
+                    <div class="link-info">
+                        <h4>${link.title}</h4>
+                        <a href="${link.url}" target="_blank">${link.url}</a>
+                    </div>
+                    <div class="link-actions">
+                        <button class="btn btn-danger btn-sm" onclick="deleteUserLink('${link.id}')">Delete</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+    } catch (error) {
+        console.error('Error loading links:', error);
+    }
+}
+
+window.handleAddLink = async function(e) {
+    e.preventDefault();
+    
+    if (!APP.currentUser) return;
+    
+    const snapshot = await getDocs(collection(db, 'users', APP.currentUser.uid, 'links'));
+    if (snapshot.size >= 10) {
+        showToast('Maximum 10 links allowed!', 'warning');
+        return;
+    }
+
+    try {
+        showToast('Adding link...', 'warning');
+        
+        await addDoc(collection(db, 'users', APP.currentUser.uid, 'links'), {
+            title: document.getElementById('linkTitle').value.trim(),
+            url: document.getElementById('linkUrl').value.trim(),
+            icon: document.getElementById('linkIcon').value.trim() || '🔗',
+            createdAt: serverTimestamp()
+        });
+
+        closeModal('addLinkModal');
+        showToast('Link added!', 'success');
+        e.target.reset();
+        document.getElementById('linkIcon').value = '🔗';
+        loadUserLinks();
+        
+    } catch (error) {
+        console.error('Error adding link:', error);
+        showToast('Failed to add link', 'error');
+    }
+}
+
+window.deleteUserLink = async function(docId) {
+    if (!confirm('Delete this link?')) return;
+    
+    try {
+        await deleteDoc(doc(db, 'users', APP.currentUser.uid, 'links', docId));
+        showToast('Link deleted!', 'success');
+        loadUserLinks();
+    } catch (error) {
+        showToast('Delete failed', 'error');
+    }
+}
+
+// ==========================================
+// CAMPAIGNS
+// ==========================================
+async function loadUserCampaigns() {
+    const grid = document.getElementById('campaignsGrid');
+    const empty = document.getElementById('campaignsEmptyState');
+    const count = document.getElementById('campaignsCount');
+    const countStat = document.getElementById('campaignsCountStat');
+
+    try {
+        const q = query(
+            collection(db, 'users', APP.currentUser.uid, 'campaigns'),
+            orderBy('createdAt', 'desc')
+        );
+        const snapshot = await getDocs(q);
+        
+        const campaigns = [];
+        snapshot.forEach(doc => campaigns.push({ id: doc.id, ...doc.data() }));
+
+        if (count) count.textContent = campaigns.length;
+        if (countStat) countStat.textContent = campaigns.length;
+
+        if (campaigns.length === 0) {
+            grid.innerHTML = '';
+            empty.style.display = 'block';
+        } else {
+            empty.style.display = 'none';
+            grid.innerHTML = campaigns.map(c => `
+                <div class="glass-card campaign-card">
+                    <div class="campaign-image">${getPlatformIcon(c.platform)}</div>
+                    <h3 class="campaign-title">${c.title}</h3>
+                    <p class="campaign-description">${c.description}</p>
+                    <div class="campaign-footer">
+                        <span class="campaign-platform">${c.platform}</span>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <a href="${c.url}" target="_blank" class="btn btn-primary btn-sm">Visit →</a>
+                            <button class="btn btn-danger btn-sm" onclick="deleteUserCampaign('${c.id}')">Delete</button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+    } catch (error) {
+        console.error('Error loading campaigns:', error);
+    }
+}
+
+window.handleAddCampaign = async function(e) {
+    e.preventDefault();
+    
+    if (!APP.currentUser) return;
+
+    try {
+        showToast('Adding campaign...', 'warning');
+        
+        await addDoc(collection(db, 'users', APP.currentUser.uid, 'campaigns'), {
+            title: document.getElementById('campaignTitle').value.trim(),
+            url: document.getElementById('campaignUrl').value.trim(),
+            platform: document.getElementById('campaignPlatform').value,
+            description: document.getElementById('campaignDescription').value.trim(),
+            createdAt: serverTimestamp()
+        });
+
+        closeModal('addCampaignModal');
+        showToast('Campaign added!', 'success');
+        e.target.reset();
+        loadUserCampaigns();
+        loadPublicCampaigns();
+        
+    } catch (error) {
+        console.error('Error adding campaign:', error);
+        showToast('Failed to add campaign', 'error');
+    }
+}
+
+window.deleteUserCampaign = async function(docId) {
+    if (!confirm('Delete this campaign?')) return;
+    
+    try {
+        await deleteDoc(doc(db, 'users', APP.currentUser.uid, 'campaigns', docId));
+        showToast('Campaign deleted!', 'success');
+        loadUserCampaigns();
+        loadPublicCampaigns();
+    } catch (error) {
+        showToast('Delete failed', 'error');
     }
 }
 
@@ -439,9 +717,59 @@ function getPlatformIcon(platform) {
 }
 
 // ==========================================
+// PUBLIC CAMPAIGNS
+// ==========================================
+async function loadPublicCampaigns() {
+    const grid = document.getElementById('publicCampaignsGrid');
+    const empty = document.getElementById('publicCampaignsEmpty');
+
+    try {
+        const usersSnapshot = await getDocs(collection(db, 'users'));
+        const allCampaigns = [];
+
+        for (const userDoc of usersSnapshot.docs) {
+            const userData = userDoc.data();
+            const campaignsSnapshot = await getDocs(
+                collection(db, 'users', userDoc.id, 'campaigns')
+            );
+            
+            campaignsSnapshot.forEach(doc => {
+                allCampaigns.push({
+                    ...doc.data(),
+                    creator: userData.name || 'Anonymous'
+                });
+            });
+        }
+
+        if (allCampaigns.length === 0) {
+            grid.innerHTML = '';
+            empty.style.display = 'block';
+        } else {
+            empty.style.display = 'none';
+            grid.innerHTML = allCampaigns.map(c => `
+                <div class="glass-card campaign-card">
+                    <div class="campaign-image">${getPlatformIcon(c.platform)}</div>
+                    <h3 class="campaign-title">${c.title}</h3>
+                    <p class="campaign-description">${c.description}</p>
+                    <div class="campaign-footer">
+                        <div>
+                            <span class="campaign-platform">${c.platform}</span>
+                            <span style="color: var(--text-muted); font-size: 0.8rem;"> by ${c.creator}</span>
+                        </div>
+                        <a href="${c.url}" target="_blank" class="btn btn-primary btn-sm">Support →</a>
+                    </div>
+                </div>
+            `).join('');
+        }
+    } catch (error) {
+        console.error('Error loading public campaigns:', error);
+    }
+}
+
+// ==========================================
 // TAB SWITCHING
 // ==========================================
-function switchDashboardTab(tab) {
+window.switchDashboardTab = function(tab) {
     document.querySelectorAll('#dashboardTabs .tab-btn').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.tab === tab);
     });
@@ -451,171 +779,14 @@ function switchDashboardTab(tab) {
 }
 
 // ==========================================
-// FILE UPLOAD
-// ==========================================
-function handleFileUpload(files) {
-    if (!APP.currentUser) {
-        showToast('Please sign in first!', 'error');
-        return;
-    }
-    
-    const user = APP.users[APP.currentUser.email];
-    const remaining = 10 - user.qrCodes.length;
-    
-    if (remaining <= 0) {
-        showToast('Maximum 10 QR codes allowed!', 'warning');
-        return;
-    }
-
-    Array.from(files).slice(0, remaining).forEach(file => {
-        if (!file.type.startsWith('image/')) {
-            showToast(`${file.name} is not an image!`, 'error');
-            return;
-        }
-
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            user.qrCodes.push({ name: file.name, data: e.target.result });
-            saveState();
-            renderDashboard();
-            showToast('QR code uploaded!', 'success');
-        };
-        reader.readAsDataURL(file);
-    });
-}
-
-// ==========================================
-// USER CRUD OPERATIONS
-// ==========================================
-function deleteUserQR(index) {
-    if (confirm('Delete this QR code?')) {
-        APP.users[APP.currentUser.email].qrCodes.splice(index, 1);
-        saveState();
-        renderDashboard();
-        showToast('QR code deleted!', 'success');
-    }
-}
-
-function handleAddLink(e) {
-    e.preventDefault();
-    
-    if (!APP.currentUser) {
-        showToast('Please sign in first!', 'error');
-        return;
-    }
-    
-    const user = APP.users[APP.currentUser.email];
-
-    if (user.links.length >= 10) {
-        showToast('Maximum 10 links allowed!', 'warning');
-        return;
-    }
-
-    user.links.push({
-        title: document.getElementById('linkTitle').value.trim(),
-        url: document.getElementById('linkUrl').value.trim(),
-        icon: document.getElementById('linkIcon').value.trim() || '🔗'
-    });
-
-    saveState();
-    closeModal('addLinkModal');
-    renderDashboard();
-    showToast('Link added!', 'success');
-    e.target.reset();
-    document.getElementById('linkIcon').value = '🔗';
-}
-
-function deleteUserLink(index) {
-    if (confirm('Delete this link?')) {
-        APP.users[APP.currentUser.email].links.splice(index, 1);
-        saveState();
-        renderDashboard();
-        showToast('Link deleted!', 'success');
-    }
-}
-
-function handleAddCampaign(e) {
-    e.preventDefault();
-    
-    if (!APP.currentUser) {
-        showToast('Please sign in first!', 'error');
-        return;
-    }
-    
-    const user = APP.users[APP.currentUser.email];
-
-    user.campaigns.push({
-        title: document.getElementById('campaignTitle').value.trim(),
-        url: document.getElementById('campaignUrl').value.trim(),
-        platform: document.getElementById('campaignPlatform').value,
-        description: document.getElementById('campaignDescription').value.trim()
-    });
-
-    saveState();
-    closeModal('addCampaignModal');
-    renderDashboard();
-    renderPublicCampaigns();
-    showToast('Campaign added!', 'success');
-    e.target.reset();
-}
-
-function deleteUserCampaign(index) {
-    if (confirm('Delete this campaign?')) {
-        APP.users[APP.currentUser.email].campaigns.splice(index, 1);
-        saveState();
-        renderDashboard();
-        renderPublicCampaigns();
-        showToast('Campaign deleted!', 'success');
-    }
-}
-
-// ==========================================
-// PUBLIC CAMPAIGNS
-// ==========================================
-function renderPublicCampaigns() {
-    const grid = document.getElementById('publicCampaignsGrid');
-    const empty = document.getElementById('publicCampaignsEmpty');
-
-    const allCampaigns = [];
-    Object.values(APP.users).forEach(user => {
-        if (user.campaigns) {
-            user.campaigns.forEach(c => {
-                allCampaigns.push({ ...c, creator: user.name });
-            });
-        }
-    });
-
-    if (allCampaigns.length === 0) {
-        grid.innerHTML = '';
-        empty.style.display = 'block';
-    } else {
-        empty.style.display = 'none';
-        grid.innerHTML = allCampaigns.map(c => `
-            <div class="glass-card campaign-card">
-                <div class="campaign-image">${getPlatformIcon(c.platform)}</div>
-                <h3 class="campaign-title">${c.title}</h3>
-                <p class="campaign-description">${c.description}</p>
-                <div class="campaign-footer">
-                    <div>
-                        <span class="campaign-platform">${c.platform}</span>
-                        <span style="color: var(--text-muted); font-size: 0.8rem;"> by ${c.creator}</span>
-                    </div>
-                    <a href="${c.url}" target="_blank" class="btn btn-primary btn-sm">Support →</a>
-                </div>
-            </div>
-        `).join('');
-    }
-}
-
-// ==========================================
 // IMAGE PREVIEW
 // ==========================================
-function previewImage(src) {
+window.previewImage = function(src) {
     document.getElementById('previewImage').src = src;
     openModal('imagePreviewModal');
 }
 
 // ==========================================
-// INITIALIZE APP
+// START APP
 // ==========================================
 document.addEventListener('DOMContentLoaded', init);
