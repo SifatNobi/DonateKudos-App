@@ -54,10 +54,12 @@ const APP = {
 // INITIALIZE
 // ==========================================
 function init() {
+    console.log('App initializing...');
     setupAuthListener();
     setupEventListeners();
     loadPublicCampaigns();
     loadAllCreators();
+    console.log('App initialized successfully');
 }
 
 // ==========================================
@@ -66,9 +68,11 @@ function init() {
 function setupAuthListener() {
     onAuthStateChanged(auth, async (user) => {
         if (user) {
+            console.log('User logged in:', user.email);
             APP.currentUser = user;
             await loadUserData(user.uid);
         } else {
+            console.log('User logged out');
             APP.currentUser = null;
             APP.userData = null;
         }
@@ -85,6 +89,7 @@ async function loadUserData(userId) {
         const userDoc = await getDoc(doc(db, 'users', userId));
         if (userDoc.exists()) {
             APP.userData = userDoc.data();
+            console.log('User data loaded:', APP.userData.name);
         }
     } catch (error) {
         console.error('Error loading user:', error);
@@ -95,31 +100,12 @@ async function loadUserData(userId) {
 // EVENT LISTENERS
 // ==========================================
 function setupEventListeners() {
-    const qrUploadArea = document.getElementById('qrUploadArea');
-    const qrFileInput = document.getElementById('qrFileInput');
+    console.log('Setting up event listeners...');
     
-    if (qrUploadArea) {
-        qrUploadArea.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            qrUploadArea.classList.add('dragover');
-        });
-        
-        qrUploadArea.addEventListener('dragleave', () => {
-            qrUploadArea.classList.remove('dragover');
-        });
-        
-        qrUploadArea.addEventListener('drop', (e) => {
-            e.preventDefault();
-            qrUploadArea.classList.remove('dragover');
-            handleFileUpload(e.dataTransfer.files);
-        });
-        
-        qrFileInput.addEventListener('change', (e) => {
-            handleFileUpload(e.target.files);
-            e.target.value = '';
-        });
-    }
+    // Setup QR Upload listeners
+    setupQRUploadListeners();
 
+    // Navbar scroll effect
     window.addEventListener('scroll', () => {
         const navbar = document.getElementById('navbar');
         if (navbar) {
@@ -127,6 +113,7 @@ function setupEventListeners() {
         }
     });
 
+    // Close dropdowns on outside click
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.user-menu')) {
             const dropdown = document.getElementById('userDropdown');
@@ -134,6 +121,7 @@ function setupEventListeners() {
         }
     });
 
+    // Close modals on overlay click
     document.querySelectorAll('.modal-overlay').forEach(overlay => {
         overlay.addEventListener('click', (e) => {
             if (e.target === overlay) {
@@ -142,6 +130,98 @@ function setupEventListeners() {
             }
         });
     });
+    
+    console.log('Event listeners set up complete');
+}
+
+// ==========================================
+// QR UPLOAD EVENT LISTENERS (FIXED)
+// ==========================================
+function setupQRUploadListeners() {
+    const qrUploadArea = document.getElementById('qrUploadArea');
+    const qrFileInput = document.getElementById('qrFileInput');
+    
+    if (!qrUploadArea) {
+        console.warn('QR Upload area not found - will retry when dashboard loads');
+        return;
+    }
+    
+    if (!qrFileInput) {
+        console.warn('QR File input not found');
+        return;
+    }
+    
+    console.log('Setting up QR upload listeners...');
+    
+    // Remove any existing listeners by cloning
+    const newUploadArea = qrUploadArea.cloneNode(true);
+    qrUploadArea.parentNode.replaceChild(newUploadArea, qrUploadArea);
+    
+    const newFileInput = document.getElementById('qrFileInput');
+    
+    // Click to open file picker
+    newUploadArea.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log('Upload area clicked');
+        
+        if (!APP.currentUser) {
+            showToast('Please sign in first!', 'error');
+            return;
+        }
+        
+        newFileInput.click();
+    });
+    
+    // Drag over effect
+    newUploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        newUploadArea.classList.add('dragover');
+    });
+    
+    // Drag leave effect
+    newUploadArea.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        newUploadArea.classList.remove('dragover');
+    });
+    
+    // Drop files
+    newUploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        newUploadArea.classList.remove('dragover');
+        
+        console.log('Files dropped');
+        
+        if (!APP.currentUser) {
+            showToast('Please sign in first!', 'error');
+            return;
+        }
+        
+        const files = e.dataTransfer.files;
+        if (files && files.length > 0) {
+            console.log('Dropped files count:', files.length);
+            handleQRFileUpload(files);
+        }
+    });
+    
+    // File input change
+    newFileInput.addEventListener('change', (e) => {
+        console.log('File input changed');
+        
+        const files = e.target.files;
+        if (files && files.length > 0) {
+            console.log('Selected files count:', files.length);
+            handleQRFileUpload(files);
+        }
+        
+        // Reset input so same file can be selected again
+        e.target.value = '';
+    });
+    
+    console.log('QR upload listeners attached successfully');
 }
 
 // ==========================================
@@ -202,6 +282,8 @@ function updateNavigation() {
 // NAVIGATION
 // ==========================================
 window.navigateTo = function(page) {
+    console.log('Navigating to:', page);
+    
     if (page === 'dashboard' && !APP.currentUser) {
         showToast('Please sign in first!', 'warning');
         openModal('loginModal');
@@ -222,6 +304,10 @@ window.navigateTo = function(page) {
 
     if (page === 'dashboard' && APP.currentUser) {
         renderDashboard();
+        // Re-setup QR upload listeners after dashboard renders
+        setTimeout(() => {
+            setupQRUploadListeners();
+        }, 100);
     } else if (page === 'donations') {
         loadPublicCampaigns();
     }
@@ -257,6 +343,11 @@ window.handleSignup = async function(e) {
     const email = document.getElementById('signupEmail').value.trim().toLowerCase();
     const password = document.getElementById('signupPassword').value;
 
+    if (!name || !email || !password) {
+        showToast('Please fill all fields', 'error');
+        return;
+    }
+
     try {
         showToast('Creating account...', 'warning');
         
@@ -283,6 +374,8 @@ window.handleSignup = async function(e) {
             showToast('Email already registered!', 'error');
         } else if (error.code === 'auth/weak-password') {
             showToast('Password must be at least 6 characters.', 'error');
+        } else if (error.code === 'auth/invalid-email') {
+            showToast('Invalid email address.', 'error');
         } else {
             showToast('Signup failed. Try again.', 'error');
         }
@@ -294,6 +387,11 @@ window.handleLogin = async function(e) {
     
     const email = document.getElementById('loginEmail').value.trim().toLowerCase();
     const password = document.getElementById('loginPassword').value;
+
+    if (!email || !password) {
+        showToast('Please fill all fields', 'error');
+        return;
+    }
 
     try {
         showToast('Signing in...', 'warning');
@@ -315,6 +413,7 @@ window.handleLogout = async function() {
         showToast('Signed out!', 'success');
         navigateTo('home');
     } catch (error) {
+        console.error('Logout error:', error);
         showToast('Error signing out', 'error');
     }
 }
@@ -349,11 +448,14 @@ window.switchAuthModal = function(type) {
 }
 
 // ==========================================
-// TOAST
+// TOAST NOTIFICATIONS
 // ==========================================
 function showToast(message, type = 'success') {
     const container = document.getElementById('toastContainer');
-    if (!container) return;
+    if (!container) {
+        console.log('Toast:', type, message);
+        return;
+    }
     
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
@@ -374,7 +476,12 @@ function showToast(message, type = 'success') {
 // DASHBOARD
 // ==========================================
 async function renderDashboard() {
-    if (!APP.currentUser || !APP.userData) return;
+    if (!APP.currentUser || !APP.userData) {
+        console.warn('Cannot render dashboard - user not loaded');
+        return;
+    }
+    
+    console.log('Rendering dashboard...');
     
     const profileSection = document.getElementById('profileSection');
     if (profileSection) {
@@ -406,53 +513,78 @@ async function renderDashboard() {
     await loadUserQRCodes();
     await loadUserLinks();
     await loadUserCampaigns();
+    
+    console.log('Dashboard rendered');
 }
 
 // ==========================================
-// QR CODES (Base64 - No Storage Needed)
+// QR CODES - COMPLETE FIXED VERSION
 // ==========================================
+
+// Load user's QR codes
 async function loadUserQRCodes() {
     const grid = document.getElementById('qrGrid');
     const empty = document.getElementById('qrEmptyState');
     const count = document.getElementById('qrCount');
     const countStat = document.getElementById('qrCountStat');
 
-    if (!APP.currentUser) return;
+    if (!APP.currentUser) {
+        console.warn('Cannot load QR codes - not logged in');
+        return;
+    }
+
+    console.log('Loading QR codes...');
 
     try {
         const qrCodesRef = collection(db, 'users', APP.currentUser.uid, 'qrCodes');
         const snapshot = await getDocs(qrCodesRef);
         
         const qrCodes = [];
-        snapshot.forEach(doc => qrCodes.push({ id: doc.id, ...doc.data() }));
+        snapshot.forEach(docSnap => {
+            const data = docSnap.data();
+            qrCodes.push({ 
+                id: docSnap.id, 
+                name: data.name || 'QR Code',
+                imageData: data.imageData || '',
+                createdAt: data.createdAt
+            });
+        });
         
-        // Sort by createdAt if available
+        // Sort by createdAt (newest first)
         qrCodes.sort((a, b) => {
             const timeA = a.createdAt?.toMillis?.() || 0;
             const timeB = b.createdAt?.toMillis?.() || 0;
             return timeB - timeA;
         });
 
+        console.log('Loaded QR codes:', qrCodes.length);
+
+        // Update counts
         if (count) count.textContent = qrCodes.length;
         if (countStat) countStat.textContent = qrCodes.length;
 
+        // Render grid
         if (qrCodes.length === 0) {
             if (grid) grid.innerHTML = '';
             if (empty) empty.style.display = 'block';
         } else {
             if (empty) empty.style.display = 'none';
             if (grid) {
-                grid.innerHTML = qrCodes.map(qr => `
-                    <div class="glass-card item-card">
-                        <div class="item-card-image" onclick="previewImage('${qr.imageData}')">
-                            <img src="${qr.imageData}" alt="${qr.name}">
+                grid.innerHTML = qrCodes.map(qr => {
+                    // Escape the imageData for safe onclick
+                    const safeImageData = qr.imageData.replace(/'/g, "\\'");
+                    return `
+                        <div class="glass-card item-card">
+                            <div class="item-card-image" onclick="previewImage('${safeImageData}')">
+                                <img src="${qr.imageData}" alt="${qr.name}" onerror="this.style.display='none'">
+                            </div>
+                            <div class="item-card-title">${qr.name}</div>
+                            <div class="item-card-actions">
+                                <button class="btn btn-danger btn-sm" onclick="deleteUserQR('${qr.id}')">Delete</button>
+                            </div>
                         </div>
-                        <div class="item-card-title">${qr.name}</div>
-                        <div class="item-card-actions">
-                            <button class="btn btn-danger btn-sm" onclick="deleteUserQR('${qr.id}')">Delete</button>
-                        </div>
-                    </div>
-                `).join('');
+                    `;
+                }).join('');
             }
         }
     } catch (error) {
@@ -461,97 +593,207 @@ async function loadUserQRCodes() {
     }
 }
 
+// Convert file to Base64
 function fileToBase64(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
+        
+        reader.onload = () => {
+            console.log('File converted to Base64');
+            resolve(reader.result);
+        };
+        
+        reader.onerror = (error) => {
+            console.error('FileReader error:', error);
+            reject(new Error('Failed to read file'));
+        };
+        
         reader.readAsDataURL(file);
     });
 }
 
-function compressImage(base64, maxWidth = 500) {
-    return new Promise((resolve) => {
+// Compress image to reduce size
+function compressImage(base64, maxWidth = 400, quality = 0.5) {
+    return new Promise((resolve, reject) => {
         const img = new Image();
+        
         img.onload = () => {
-            const canvas = document.createElement('canvas');
-            let width = img.width;
-            let height = img.height;
-            
-            if (width > maxWidth) {
-                height = (height * maxWidth) / width;
-                width = maxWidth;
+            try {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+                
+                // Resize if too large
+                if (width > maxWidth) {
+                    height = Math.round((height * maxWidth) / width);
+                    width = maxWidth;
+                }
+                
+                // Also limit height
+                const maxHeight = 400;
+                if (height > maxHeight) {
+                    width = Math.round((width * maxHeight) / height);
+                    height = maxHeight;
+                }
+                
+                canvas.width = width;
+                canvas.height = height;
+                
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, width, height);
+                ctx.drawImage(img, 0, 0, width, height);
+                
+                // Compress to JPEG
+                const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
+                
+                console.log('Compression done. Size reduced from', 
+                    Math.round(base64.length / 1024), 'KB to', 
+                    Math.round(compressedBase64.length / 1024), 'KB');
+                
+                resolve(compressedBase64);
+            } catch (error) {
+                console.error('Canvas error:', error);
+                reject(new Error('Failed to compress image'));
             }
-            
-            canvas.width = width;
-            canvas.height = height;
-            
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, width, height);
-            
-            resolve(canvas.toDataURL('image/jpeg', 0.7));
         };
+        
+        img.onerror = () => {
+            console.error('Failed to load image for compression');
+            reject(new Error('Failed to load image'));
+        };
+        
         img.src = base64;
     });
 }
 
-async function handleFileUpload(files) {
+// Main upload handler
+async function handleQRFileUpload(files) {
+    console.log('=== QR Upload Started ===');
+    console.log('Files to process:', files.length);
+    
+    // Check if user is logged in
     if (!APP.currentUser) {
         showToast('Please sign in first!', 'error');
         return;
     }
     
-    const qrCodesRef = collection(db, 'users', APP.currentUser.uid, 'qrCodes');
-    const snapshot = await getDocs(qrCodesRef);
-    const remaining = 10 - snapshot.size;
-    
-    if (remaining <= 0) {
-        showToast('Maximum 10 QR codes allowed!', 'warning');
+    // Check if files exist
+    if (!files || files.length === 0) {
+        showToast('No files selected', 'error');
         return;
     }
-
-    for (const file of Array.from(files).slice(0, remaining)) {
-        if (!file.type.startsWith('image/')) {
-            showToast(`${file.name} is not an image!`, 'error');
-            continue;
-        }
-
-        if (file.size > 2 * 1024 * 1024) {
-            showToast(`${file.name} is too large! Max 2MB.`, 'error');
-            continue;
-        }
-
-        try {
-            showToast('Uploading...', 'warning');
-            
-            const base64 = await fileToBase64(file);
-            const compressedImage = await compressImage(base64);
-            
-            await addDoc(qrCodesRef, {
-                name: file.name,
-                imageData: compressedImage,
-                createdAt: serverTimestamp()
-            });
-            
-            showToast('QR code uploaded!', 'success');
-            
-        } catch (error) {
-            console.error('Upload error:', error);
-            showToast('Upload failed', 'error');
-        }
-    }
     
-    loadUserQRCodes();
-    loadAllCreators();
+    try {
+        // Check current count
+        const qrCodesRef = collection(db, 'users', APP.currentUser.uid, 'qrCodes');
+        const snapshot = await getDocs(qrCodesRef);
+        const currentCount = snapshot.size;
+        const remaining = 10 - currentCount;
+        
+        console.log('Current QR count:', currentCount);
+        console.log('Remaining slots:', remaining);
+        
+        if (remaining <= 0) {
+            showToast('Maximum 10 QR codes allowed!', 'warning');
+            return;
+        }
+
+        // Process files
+        const filesToProcess = Array.from(files).slice(0, remaining);
+        let successCount = 0;
+        
+        for (let i = 0; i < filesToProcess.length; i++) {
+            const file = filesToProcess[i];
+            console.log(`Processing file ${i + 1}/${filesToProcess.length}:`, file.name);
+            
+            // Validate file type
+            if (!file.type.startsWith('image/')) {
+                showToast(`${file.name} is not an image!`, 'error');
+                continue;
+            }
+
+            // Validate file size (max 5MB before compression)
+            if (file.size > 5 * 1024 * 1024) {
+                showToast(`${file.name} is too large! Max 5MB.`, 'error');
+                continue;
+            }
+
+            try {
+                showToast(`Uploading ${file.name}...`, 'warning');
+                
+                // Step 1: Convert to Base64
+                console.log('Step 1: Converting to Base64...');
+                const base64 = await fileToBase64(file);
+                console.log('Base64 size:', Math.round(base64.length / 1024), 'KB');
+                
+                // Step 2: Compress image
+                console.log('Step 2: Compressing...');
+                let compressedImage = await compressImage(base64, 400, 0.5);
+                
+                // Step 3: Check if still too large, compress more
+                if (compressedImage.length > 800000) {
+                    console.log('Still large, compressing more...');
+                    compressedImage = await compressImage(base64, 300, 0.3);
+                }
+                
+                // Step 4: Final size check
+                if (compressedImage.length > 900000) {
+                    showToast(`${file.name} is too large even after compression`, 'error');
+                    continue;
+                }
+                
+                // Step 5: Save to Firestore
+                console.log('Step 3: Saving to Firestore...');
+                const docRef = await addDoc(qrCodesRef, {
+                    name: file.name,
+                    imageData: compressedImage,
+                    createdAt: serverTimestamp()
+                });
+                
+                console.log('Saved with ID:', docRef.id);
+                successCount++;
+                
+            } catch (error) {
+                console.error('Error processing file:', file.name, error);
+                showToast(`Failed to upload ${file.name}`, 'error');
+            }
+        }
+        
+        // Show success message
+        if (successCount > 0) {
+            showToast(`${successCount} QR code(s) uploaded!`, 'success');
+        }
+        
+        // Reload QR codes
+        console.log('Reloading QR codes...');
+        await loadUserQRCodes();
+        
+        // Refresh creators list
+        loadAllCreators();
+        
+        console.log('=== QR Upload Complete ===');
+        
+    } catch (error) {
+        console.error('Upload error:', error);
+        showToast('Upload failed. Please try again.', 'error');
+    }
 }
 
+// Delete QR code
 window.deleteUserQR = async function(docId) {
     if (!confirm('Delete this QR code?')) return;
     
+    if (!APP.currentUser) {
+        showToast('Please sign in first!', 'error');
+        return;
+    }
+    
     try {
+        console.log('Deleting QR code:', docId);
         await deleteDoc(doc(db, 'users', APP.currentUser.uid, 'qrCodes', docId));
         showToast('QR code deleted!', 'success');
-        loadUserQRCodes();
+        await loadUserQRCodes();
         loadAllCreators();
     } catch (error) {
         console.error('Delete error:', error);
@@ -575,7 +817,9 @@ async function loadUserLinks() {
         const snapshot = await getDocs(linksRef);
         
         const links = [];
-        snapshot.forEach(doc => links.push({ id: doc.id, ...doc.data() }));
+        snapshot.forEach(docSnap => {
+            links.push({ id: docSnap.id, ...docSnap.data() });
+        });
         
         // Sort by createdAt
         links.sort((a, b) => {
@@ -615,31 +859,49 @@ async function loadUserLinks() {
 window.handleAddLink = async function(e) {
     e.preventDefault();
     
-    if (!APP.currentUser) return;
-    
-    const linksRef = collection(db, 'users', APP.currentUser.uid, 'links');
-    const snapshot = await getDocs(linksRef);
-    
-    if (snapshot.size >= 10) {
-        showToast('Maximum 10 links allowed!', 'warning');
+    if (!APP.currentUser) {
+        showToast('Please sign in first!', 'error');
         return;
     }
-
+    
+    const titleInput = document.getElementById('linkTitle');
+    const urlInput = document.getElementById('linkUrl');
+    const iconInput = document.getElementById('linkIcon');
+    
+    if (!titleInput || !urlInput) return;
+    
+    const title = titleInput.value.trim();
+    const url = urlInput.value.trim();
+    const icon = iconInput ? iconInput.value.trim() || '🔗' : '🔗';
+    
+    if (!title || !url) {
+        showToast('Please fill all fields', 'error');
+        return;
+    }
+    
     try {
+        const linksRef = collection(db, 'users', APP.currentUser.uid, 'links');
+        const snapshot = await getDocs(linksRef);
+        
+        if (snapshot.size >= 10) {
+            showToast('Maximum 10 links allowed!', 'warning');
+            return;
+        }
+
         showToast('Adding link...', 'warning');
         
         await addDoc(linksRef, {
-            title: document.getElementById('linkTitle').value.trim(),
-            url: document.getElementById('linkUrl').value.trim(),
-            icon: document.getElementById('linkIcon').value.trim() || '🔗',
+            title: title,
+            url: url,
+            icon: icon,
             createdAt: serverTimestamp()
         });
 
         closeModal('addLinkModal');
         showToast('Link added!', 'success');
         e.target.reset();
-        document.getElementById('linkIcon').value = '🔗';
-        loadUserLinks();
+        if (iconInput) iconInput.value = '🔗';
+        await loadUserLinks();
         loadAllCreators();
         
     } catch (error) {
@@ -651,12 +913,15 @@ window.handleAddLink = async function(e) {
 window.deleteUserLink = async function(docId) {
     if (!confirm('Delete this link?')) return;
     
+    if (!APP.currentUser) return;
+    
     try {
         await deleteDoc(doc(db, 'users', APP.currentUser.uid, 'links', docId));
         showToast('Link deleted!', 'success');
-        loadUserLinks();
+        await loadUserLinks();
         loadAllCreators();
     } catch (error) {
+        console.error('Delete error:', error);
         showToast('Delete failed', 'error');
     }
 }
@@ -677,7 +942,9 @@ async function loadUserCampaigns() {
         const snapshot = await getDocs(campaignsRef);
         
         const campaigns = [];
-        snapshot.forEach(doc => campaigns.push({ id: doc.id, ...doc.data() }));
+        snapshot.forEach(docSnap => {
+            campaigns.push({ id: docSnap.id, ...docSnap.data() });
+        });
         
         // Sort by createdAt
         campaigns.sort((a, b) => {
@@ -719,7 +986,27 @@ async function loadUserCampaigns() {
 window.handleAddCampaign = async function(e) {
     e.preventDefault();
     
-    if (!APP.currentUser) return;
+    if (!APP.currentUser) {
+        showToast('Please sign in first!', 'error');
+        return;
+    }
+    
+    const titleInput = document.getElementById('campaignTitle');
+    const urlInput = document.getElementById('campaignUrl');
+    const platformInput = document.getElementById('campaignPlatform');
+    const descInput = document.getElementById('campaignDescription');
+    
+    if (!titleInput || !urlInput || !platformInput || !descInput) return;
+    
+    const title = titleInput.value.trim();
+    const url = urlInput.value.trim();
+    const platform = platformInput.value;
+    const description = descInput.value.trim();
+    
+    if (!title || !url || !platform || !description) {
+        showToast('Please fill all fields', 'error');
+        return;
+    }
 
     try {
         showToast('Adding campaign...', 'warning');
@@ -727,17 +1014,17 @@ window.handleAddCampaign = async function(e) {
         const campaignsRef = collection(db, 'users', APP.currentUser.uid, 'campaigns');
         
         await addDoc(campaignsRef, {
-            title: document.getElementById('campaignTitle').value.trim(),
-            url: document.getElementById('campaignUrl').value.trim(),
-            platform: document.getElementById('campaignPlatform').value,
-            description: document.getElementById('campaignDescription').value.trim(),
+            title: title,
+            url: url,
+            platform: platform,
+            description: description,
             createdAt: serverTimestamp()
         });
 
         closeModal('addCampaignModal');
         showToast('Campaign added!', 'success');
         e.target.reset();
-        loadUserCampaigns();
+        await loadUserCampaigns();
         loadPublicCampaigns();
         loadAllCreators();
         
@@ -750,13 +1037,16 @@ window.handleAddCampaign = async function(e) {
 window.deleteUserCampaign = async function(docId) {
     if (!confirm('Delete this campaign?')) return;
     
+    if (!APP.currentUser) return;
+    
     try {
         await deleteDoc(doc(db, 'users', APP.currentUser.uid, 'campaigns', docId));
         showToast('Campaign deleted!', 'success');
-        loadUserCampaigns();
+        await loadUserCampaigns();
         loadPublicCampaigns();
         loadAllCreators();
     } catch (error) {
+        console.error('Delete error:', error);
         showToast('Delete failed', 'error');
     }
 }
@@ -793,14 +1083,14 @@ async function loadPublicCampaigns() {
                     collection(db, 'users', userDoc.id, 'campaigns')
                 );
                 
-                campaignsSnapshot.forEach(doc => {
+                campaignsSnapshot.forEach(docSnap => {
                     allCampaigns.push({
-                        ...doc.data(),
+                        ...docSnap.data(),
                         creator: userData.name || 'Anonymous'
                     });
                 });
             } catch (err) {
-                console.log('Could not load campaigns for user:', userDoc.id);
+                // Skip if can't read campaigns
             }
         }
 
@@ -839,6 +1129,13 @@ window.switchDashboardTab = function(tab) {
     document.querySelectorAll('#page-dashboard .tab-content').forEach(content => {
         content.classList.toggle('active', content.id === 'tab-' + tab);
     });
+    
+    // Re-setup QR listeners when switching to QR tab
+    if (tab === 'qr-codes') {
+        setTimeout(() => {
+            setupQRUploadListeners();
+        }, 100);
+    }
 }
 
 // ==========================================
@@ -846,7 +1143,7 @@ window.switchDashboardTab = function(tab) {
 // ==========================================
 window.previewImage = function(src) {
     const previewImg = document.getElementById('previewImage');
-    if (previewImg) {
+    if (previewImg && src) {
         previewImg.src = src;
         openModal('imagePreviewModal');
     }
@@ -861,6 +1158,7 @@ let allCreators = [];
 // Load all creators for search
 async function loadAllCreators() {
     try {
+        console.log('Loading all creators...');
         const usersSnapshot = await getDocs(collection(db, 'users'));
         allCreators = [];
         
@@ -902,7 +1200,7 @@ async function loadAllCreators() {
     }
 }
 
-// Search handler with debounce
+// Search handler
 window.handleSearch = function(searchTerm) {
     clearTimeout(searchTimeout);
     
@@ -972,7 +1270,7 @@ window.openCreatorProfile = async function(creatorId) {
         return;
     }
     
-    // Show loading state
+    // Show loading
     profileContent.innerHTML = '<div class="empty-section">Loading profile...</div>';
     openModal('creatorProfileModal');
     
@@ -992,45 +1290,38 @@ window.openCreatorProfile = async function(creatorId) {
         if (profileName) profileName.textContent = creatorData.name || 'Anonymous';
         if (profileEmail) profileEmail.textContent = creatorData.email || '';
         
-        // Load QR codes
+        // Load data
         let qrCodes = [];
+        let links = [];
+        let campaigns = [];
+        
         try {
             const qrSnapshot = await getDocs(collection(db, 'users', creatorId, 'qrCodes'));
-            qrSnapshot.forEach(doc => qrCodes.push({ id: doc.id, ...doc.data() }));
-        } catch (e) {
-            console.log('Could not load QR codes:', e);
-        }
+            qrSnapshot.forEach(docSnap => qrCodes.push({ id: docSnap.id, ...docSnap.data() }));
+        } catch (e) {}
         
-        // Load links
-        let links = [];
         try {
             const linksSnapshot = await getDocs(collection(db, 'users', creatorId, 'links'));
-            linksSnapshot.forEach(doc => links.push({ id: doc.id, ...doc.data() }));
-        } catch (e) {
-            console.log('Could not load links:', e);
-        }
+            linksSnapshot.forEach(docSnap => links.push({ id: docSnap.id, ...docSnap.data() }));
+        } catch (e) {}
         
-        // Load campaigns
-        let campaigns = [];
         try {
             const campaignsSnapshot = await getDocs(collection(db, 'users', creatorId, 'campaigns'));
-            campaignsSnapshot.forEach(doc => campaigns.push({ id: doc.id, ...doc.data() }));
-        } catch (e) {
-            console.log('Could not load campaigns:', e);
-        }
+            campaignsSnapshot.forEach(docSnap => campaigns.push({ id: docSnap.id, ...docSnap.data() }));
+        } catch (e) {}
         
         // Build content
         let contentHTML = '';
         
-        // QR Codes Section
+        // QR Codes
         contentHTML += `
             <div class="creator-section">
                 <h4>📱 QR Codes (${qrCodes.length})</h4>
                 ${qrCodes.length > 0 ? `
                     <div class="creator-qr-grid">
                         ${qrCodes.map(qr => `
-                            <div class="creator-qr-item" onclick="previewImage('${qr.imageData}')">
-                                <img src="${qr.imageData}" alt="${qr.name || 'QR Code'}">
+                            <div class="creator-qr-item" onclick="previewImage('${(qr.imageData || '').replace(/'/g, "\\'")}')">
+                                <img src="${qr.imageData || ''}" alt="${qr.name || 'QR'}" onerror="this.style.display='none'">
                                 <p>${qr.name || 'QR Code'}</p>
                             </div>
                         `).join('')}
@@ -1039,7 +1330,7 @@ window.openCreatorProfile = async function(creatorId) {
             </div>
         `;
         
-        // Links Section
+        // Links
         contentHTML += `
             <div class="creator-section">
                 <h4>🔗 Support Links (${links.length})</h4>
@@ -1059,7 +1350,7 @@ window.openCreatorProfile = async function(creatorId) {
             </div>
         `;
         
-        // Campaigns Section
+        // Campaigns
         contentHTML += `
             <div class="creator-section">
                 <h4>🚀 Campaigns (${campaigns.length})</h4>
