@@ -112,7 +112,12 @@
 
                 <!-- QR Codes Tab -->
                 <div class="tab-content active" id="tab-qr-codes">
-                    <div class="upload-area" id="qrUploadArea" onclick="document.getElementById('qrFileInput').click()">
+                    <div class="upload-area" id="qrUploadArea" onclick="triggerQRUpload()">
+    <div class="upload-icon">📷</div>
+    <h3>Upload QR Codes</h3>
+    <p>Click to browse or drag & drop (Max 10 images)</p>
+    <input type="file" id="qrFileInput" accept="image/*" multiple hidden onchange="handleQRFileSelect(this)">
+</div>
                         <div class="upload-icon">📷</div>
                         <h3>Upload QR Codes</h3>
                         <p>Drag & drop images or click to browse (Max 10 images)</p>
@@ -353,3 +358,4 @@
     <script type="module" src="script.js"></script>
 </body>
 </html>
+
