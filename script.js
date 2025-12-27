@@ -121,7 +121,10 @@ function setupEventListeners() {
     }
 
     window.addEventListener('scroll', () => {
-        document.getElementById('navbar').classList.toggle('scrolled', window.scrollY > 50);
+        const navbar = document.getElementById('navbar');
+        if (navbar) {
+            navbar.classList.toggle('scrolled', window.scrollY > 50);
+        }
     });
 
     document.addEventListener('click', (e) => {
@@ -214,7 +217,8 @@ window.navigateTo = function(page) {
         link.classList.toggle('active', link.dataset.page === page);
     });
 
-    document.getElementById('navLinks').classList.remove('active');
+    const navLinks = document.getElementById('navLinks');
+    if (navLinks) navLinks.classList.remove('active');
 
     if (page === 'dashboard' && APP.currentUser) {
         renderDashboard();
@@ -226,11 +230,13 @@ window.navigateTo = function(page) {
 }
 
 window.toggleMobileMenu = function() {
-    document.getElementById('navLinks').classList.toggle('active');
+    const navLinks = document.getElementById('navLinks');
+    if (navLinks) navLinks.classList.toggle('active');
 }
 
 window.toggleUserDropdown = function() {
-    document.getElementById('userDropdown').classList.toggle('active');
+    const dropdown = document.getElementById('userDropdown');
+    if (dropdown) dropdown.classList.toggle('active');
 }
 
 // ==========================================
@@ -266,6 +272,8 @@ window.handleSignup = async function(e) {
         closeModal('signupModal');
         showToast(`Welcome, ${name}!`, 'success');
         e.target.reset();
+        
+        // Refresh creators list
         loadAllCreators();
         
     } catch (error) {
@@ -315,13 +323,19 @@ window.handleLogout = async function() {
 // MODALS
 // ==========================================
 window.openModal = function(id) {
-    document.getElementById(id).classList.add('active');
-    document.body.style.overflow = 'hidden';
+    const modal = document.getElementById(id);
+    if (modal) {
+        modal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
 }
 
 window.closeModal = function(id) {
-    document.getElementById(id).classList.remove('active');
-    document.body.style.overflow = '';
+    const modal = document.getElementById(id);
+    if (modal) {
+        modal.classList.remove('active');
+        document.body.style.overflow = '';
+    }
 }
 
 window.switchAuthModal = function(type) {
@@ -339,6 +353,8 @@ window.switchAuthModal = function(type) {
 // ==========================================
 function showToast(message, type = 'success') {
     const container = document.getElementById('toastContainer');
+    if (!container) return;
+    
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
     
@@ -360,29 +376,32 @@ function showToast(message, type = 'success') {
 async function renderDashboard() {
     if (!APP.currentUser || !APP.userData) return;
     
-    document.getElementById('profileSection').innerHTML = `
-        <div class="profile-header">
-            <div class="profile-avatar">${APP.userData.name.charAt(0).toUpperCase()}</div>
-            <div class="profile-info">
-                <h2>${APP.userData.name}</h2>
-                <p>${APP.userData.email}</p>
+    const profileSection = document.getElementById('profileSection');
+    if (profileSection) {
+        profileSection.innerHTML = `
+            <div class="profile-header">
+                <div class="profile-avatar">${APP.userData.name.charAt(0).toUpperCase()}</div>
+                <div class="profile-info">
+                    <h2>${APP.userData.name}</h2>
+                    <p>${APP.userData.email}</p>
+                </div>
             </div>
-        </div>
-        <div class="profile-stats">
-            <div class="stat-item">
-                <div class="stat-value" id="qrCountStat">0</div>
-                <div class="stat-label">QR Codes</div>
+            <div class="profile-stats">
+                <div class="stat-item">
+                    <div class="stat-value" id="qrCountStat">0</div>
+                    <div class="stat-label">QR Codes</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="linksCountStat">0</div>
+                    <div class="stat-label">Links</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="campaignsCountStat">0</div>
+                    <div class="stat-label">Campaigns</div>
+                </div>
             </div>
-            <div class="stat-item">
-                <div class="stat-value" id="linksCountStat">0</div>
-                <div class="stat-label">Links</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-value" id="campaignsCountStat">0</div>
-                <div class="stat-label">Campaigns</div>
-            </div>
-        </div>
-    `;
+        `;
+    }
 
     await loadUserQRCodes();
     await loadUserLinks();
@@ -398,35 +417,43 @@ async function loadUserQRCodes() {
     const count = document.getElementById('qrCount');
     const countStat = document.getElementById('qrCountStat');
 
+    if (!APP.currentUser) return;
+
     try {
-        const q = query(
-            collection(db, 'users', APP.currentUser.uid, 'qrCodes'),
-            orderBy('createdAt', 'desc')
-        );
-        const snapshot = await getDocs(q);
+        const qrCodesRef = collection(db, 'users', APP.currentUser.uid, 'qrCodes');
+        const snapshot = await getDocs(qrCodesRef);
         
         const qrCodes = [];
         snapshot.forEach(doc => qrCodes.push({ id: doc.id, ...doc.data() }));
+        
+        // Sort by createdAt if available
+        qrCodes.sort((a, b) => {
+            const timeA = a.createdAt?.toMillis?.() || 0;
+            const timeB = b.createdAt?.toMillis?.() || 0;
+            return timeB - timeA;
+        });
 
         if (count) count.textContent = qrCodes.length;
         if (countStat) countStat.textContent = qrCodes.length;
 
         if (qrCodes.length === 0) {
-            grid.innerHTML = '';
-            empty.style.display = 'block';
+            if (grid) grid.innerHTML = '';
+            if (empty) empty.style.display = 'block';
         } else {
-            empty.style.display = 'none';
-            grid.innerHTML = qrCodes.map(qr => `
-                <div class="glass-card item-card">
-                    <div class="item-card-image" onclick="previewImage('${qr.imageData}')">
-                        <img src="${qr.imageData}" alt="${qr.name}">
+            if (empty) empty.style.display = 'none';
+            if (grid) {
+                grid.innerHTML = qrCodes.map(qr => `
+                    <div class="glass-card item-card">
+                        <div class="item-card-image" onclick="previewImage('${qr.imageData}')">
+                            <img src="${qr.imageData}" alt="${qr.name}">
+                        </div>
+                        <div class="item-card-title">${qr.name}</div>
+                        <div class="item-card-actions">
+                            <button class="btn btn-danger btn-sm" onclick="deleteUserQR('${qr.id}')">Delete</button>
+                        </div>
                     </div>
-                    <div class="item-card-title">${qr.name}</div>
-                    <div class="item-card-actions">
-                        <button class="btn btn-danger btn-sm" onclick="deleteUserQR('${qr.id}')">Delete</button>
-                    </div>
-                </div>
-            `).join('');
+                `).join('');
+            }
         }
     } catch (error) {
         console.error('Error loading QR codes:', error);
@@ -474,7 +501,8 @@ async function handleFileUpload(files) {
         return;
     }
     
-    const snapshot = await getDocs(collection(db, 'users', APP.currentUser.uid, 'qrCodes'));
+    const qrCodesRef = collection(db, 'users', APP.currentUser.uid, 'qrCodes');
+    const snapshot = await getDocs(qrCodesRef);
     const remaining = 10 - snapshot.size;
     
     if (remaining <= 0) {
@@ -499,7 +527,7 @@ async function handleFileUpload(files) {
             const base64 = await fileToBase64(file);
             const compressedImage = await compressImage(base64);
             
-            await addDoc(collection(db, 'users', APP.currentUser.uid, 'qrCodes'), {
+            await addDoc(qrCodesRef, {
                 name: file.name,
                 imageData: compressedImage,
                 createdAt: serverTimestamp()
@@ -540,36 +568,44 @@ async function loadUserLinks() {
     const count = document.getElementById('linksCount');
     const countStat = document.getElementById('linksCountStat');
 
+    if (!APP.currentUser) return;
+
     try {
-        const q = query(
-            collection(db, 'users', APP.currentUser.uid, 'links'),
-            orderBy('createdAt', 'desc')
-        );
-        const snapshot = await getDocs(q);
+        const linksRef = collection(db, 'users', APP.currentUser.uid, 'links');
+        const snapshot = await getDocs(linksRef);
         
         const links = [];
         snapshot.forEach(doc => links.push({ id: doc.id, ...doc.data() }));
+        
+        // Sort by createdAt
+        links.sort((a, b) => {
+            const timeA = a.createdAt?.toMillis?.() || 0;
+            const timeB = b.createdAt?.toMillis?.() || 0;
+            return timeB - timeA;
+        });
 
         if (count) count.textContent = links.length;
         if (countStat) countStat.textContent = links.length;
 
         if (links.length === 0) {
-            list.innerHTML = '';
-            empty.style.display = 'block';
+            if (list) list.innerHTML = '';
+            if (empty) empty.style.display = 'block';
         } else {
-            empty.style.display = 'none';
-            list.innerHTML = links.map(link => `
-                <div class="glass-card link-item">
-                    <div class="link-icon">${link.icon || '🔗'}</div>
-                    <div class="link-info">
-                        <h4>${link.title}</h4>
-                        <a href="${link.url}" target="_blank">${link.url}</a>
+            if (empty) empty.style.display = 'none';
+            if (list) {
+                list.innerHTML = links.map(link => `
+                    <div class="glass-card link-item">
+                        <div class="link-icon">${link.icon || '🔗'}</div>
+                        <div class="link-info">
+                            <h4>${link.title}</h4>
+                            <a href="${link.url}" target="_blank">${link.url}</a>
+                        </div>
+                        <div class="link-actions">
+                            <button class="btn btn-danger btn-sm" onclick="deleteUserLink('${link.id}')">Delete</button>
+                        </div>
                     </div>
-                    <div class="link-actions">
-                        <button class="btn btn-danger btn-sm" onclick="deleteUserLink('${link.id}')">Delete</button>
-                    </div>
-                </div>
-            `).join('');
+                `).join('');
+            }
         }
     } catch (error) {
         console.error('Error loading links:', error);
@@ -581,7 +617,9 @@ window.handleAddLink = async function(e) {
     
     if (!APP.currentUser) return;
     
-    const snapshot = await getDocs(collection(db, 'users', APP.currentUser.uid, 'links'));
+    const linksRef = collection(db, 'users', APP.currentUser.uid, 'links');
+    const snapshot = await getDocs(linksRef);
+    
     if (snapshot.size >= 10) {
         showToast('Maximum 10 links allowed!', 'warning');
         return;
@@ -590,7 +628,7 @@ window.handleAddLink = async function(e) {
     try {
         showToast('Adding link...', 'warning');
         
-        await addDoc(collection(db, 'users', APP.currentUser.uid, 'links'), {
+        await addDoc(linksRef, {
             title: document.getElementById('linkTitle').value.trim(),
             url: document.getElementById('linkUrl').value.trim(),
             icon: document.getElementById('linkIcon').value.trim() || '🔗',
@@ -632,38 +670,46 @@ async function loadUserCampaigns() {
     const count = document.getElementById('campaignsCount');
     const countStat = document.getElementById('campaignsCountStat');
 
+    if (!APP.currentUser) return;
+
     try {
-        const q = query(
-            collection(db, 'users', APP.currentUser.uid, 'campaigns'),
-            orderBy('createdAt', 'desc')
-        );
-        const snapshot = await getDocs(q);
+        const campaignsRef = collection(db, 'users', APP.currentUser.uid, 'campaigns');
+        const snapshot = await getDocs(campaignsRef);
         
         const campaigns = [];
         snapshot.forEach(doc => campaigns.push({ id: doc.id, ...doc.data() }));
+        
+        // Sort by createdAt
+        campaigns.sort((a, b) => {
+            const timeA = a.createdAt?.toMillis?.() || 0;
+            const timeB = b.createdAt?.toMillis?.() || 0;
+            return timeB - timeA;
+        });
 
         if (count) count.textContent = campaigns.length;
         if (countStat) countStat.textContent = campaigns.length;
 
         if (campaigns.length === 0) {
-            grid.innerHTML = '';
-            empty.style.display = 'block';
+            if (grid) grid.innerHTML = '';
+            if (empty) empty.style.display = 'block';
         } else {
-            empty.style.display = 'none';
-            grid.innerHTML = campaigns.map(c => `
-                <div class="glass-card campaign-card">
-                    <div class="campaign-image">${getPlatformIcon(c.platform)}</div>
-                    <h3 class="campaign-title">${c.title}</h3>
-                    <p class="campaign-description">${c.description}</p>
-                    <div class="campaign-footer">
-                        <span class="campaign-platform">${c.platform}</span>
-                        <div style="display: flex; gap: 0.5rem;">
-                            <a href="${c.url}" target="_blank" class="btn btn-primary btn-sm">Visit →</a>
-                            <button class="btn btn-danger btn-sm" onclick="deleteUserCampaign('${c.id}')">Delete</button>
+            if (empty) empty.style.display = 'none';
+            if (grid) {
+                grid.innerHTML = campaigns.map(c => `
+                    <div class="glass-card campaign-card">
+                        <div class="campaign-image">${getPlatformIcon(c.platform)}</div>
+                        <h3 class="campaign-title">${c.title}</h3>
+                        <p class="campaign-description">${c.description}</p>
+                        <div class="campaign-footer">
+                            <span class="campaign-platform">${c.platform}</span>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <a href="${c.url}" target="_blank" class="btn btn-primary btn-sm">Visit →</a>
+                                <button class="btn btn-danger btn-sm" onclick="deleteUserCampaign('${c.id}')">Delete</button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            `).join('');
+                `).join('');
+            }
         }
     } catch (error) {
         console.error('Error loading campaigns:', error);
@@ -678,7 +724,9 @@ window.handleAddCampaign = async function(e) {
     try {
         showToast('Adding campaign...', 'warning');
         
-        await addDoc(collection(db, 'users', APP.currentUser.uid, 'campaigns'), {
+        const campaignsRef = collection(db, 'users', APP.currentUser.uid, 'campaigns');
+        
+        await addDoc(campaignsRef, {
             title: document.getElementById('campaignTitle').value.trim(),
             url: document.getElementById('campaignUrl').value.trim(),
             platform: document.getElementById('campaignPlatform').value,
@@ -731,29 +779,36 @@ async function loadPublicCampaigns() {
     const grid = document.getElementById('publicCampaignsGrid');
     const empty = document.getElementById('publicCampaignsEmpty');
 
+    if (!grid) return;
+
     try {
         const usersSnapshot = await getDocs(collection(db, 'users'));
         const allCampaigns = [];
 
         for (const userDoc of usersSnapshot.docs) {
             const userData = userDoc.data();
-            const campaignsSnapshot = await getDocs(
-                collection(db, 'users', userDoc.id, 'campaigns')
-            );
             
-            campaignsSnapshot.forEach(doc => {
-                allCampaigns.push({
-                    ...doc.data(),
-                    creator: userData.name || 'Anonymous'
+            try {
+                const campaignsSnapshot = await getDocs(
+                    collection(db, 'users', userDoc.id, 'campaigns')
+                );
+                
+                campaignsSnapshot.forEach(doc => {
+                    allCampaigns.push({
+                        ...doc.data(),
+                        creator: userData.name || 'Anonymous'
+                    });
                 });
-            });
+            } catch (err) {
+                console.log('Could not load campaigns for user:', userDoc.id);
+            }
         }
 
         if (allCampaigns.length === 0) {
             grid.innerHTML = '';
-            empty.style.display = 'block';
+            if (empty) empty.style.display = 'block';
         } else {
-            empty.style.display = 'none';
+            if (empty) empty.style.display = 'none';
             grid.innerHTML = allCampaigns.map(c => `
                 <div class="glass-card campaign-card">
                     <div class="campaign-image">${getPlatformIcon(c.platform)}</div>
@@ -790,8 +845,11 @@ window.switchDashboardTab = function(tab) {
 // IMAGE PREVIEW
 // ==========================================
 window.previewImage = function(src) {
-    document.getElementById('previewImage').src = src;
-    openModal('imagePreviewModal');
+    const previewImg = document.getElementById('previewImage');
+    if (previewImg) {
+        previewImg.src = src;
+        openModal('imagePreviewModal');
+    }
 }
 
 // ==========================================
@@ -800,6 +858,7 @@ window.previewImage = function(src) {
 let searchTimeout = null;
 let allCreators = [];
 
+// Load all creators for search
 async function loadAllCreators() {
     try {
         const usersSnapshot = await getDocs(collection(db, 'users'));
@@ -808,50 +867,73 @@ async function loadAllCreators() {
         for (const userDoc of usersSnapshot.docs) {
             const userData = userDoc.data();
             
-            const qrSnapshot = await getDocs(collection(db, 'users', userDoc.id, 'qrCodes'));
-            const linksSnapshot = await getDocs(collection(db, 'users', userDoc.id, 'links'));
-            const campaignsSnapshot = await getDocs(collection(db, 'users', userDoc.id, 'campaigns'));
+            let qrCount = 0;
+            let linksCount = 0;
+            let campaignsCount = 0;
+            
+            try {
+                const qrSnapshot = await getDocs(collection(db, 'users', userDoc.id, 'qrCodes'));
+                qrCount = qrSnapshot.size;
+            } catch (e) {}
+            
+            try {
+                const linksSnapshot = await getDocs(collection(db, 'users', userDoc.id, 'links'));
+                linksCount = linksSnapshot.size;
+            } catch (e) {}
+            
+            try {
+                const campaignsSnapshot = await getDocs(collection(db, 'users', userDoc.id, 'campaigns'));
+                campaignsCount = campaignsSnapshot.size;
+            } catch (e) {}
             
             allCreators.push({
                 id: userDoc.id,
                 name: userData.name || 'Anonymous',
                 email: userData.email || '',
-                qrCount: qrSnapshot.size,
-                linksCount: linksSnapshot.size,
-                campaignsCount: campaignsSnapshot.size
+                qrCount: qrCount,
+                linksCount: linksCount,
+                campaignsCount: campaignsCount
             });
         }
+        
+        console.log('Loaded creators:', allCreators.length);
     } catch (error) {
         console.error('Error loading creators:', error);
     }
 }
 
+// Search handler with debounce
 window.handleSearch = function(searchTerm) {
     clearTimeout(searchTimeout);
     
-    searchTimeout = setTimeout(() => {
-        performSearch(searchTerm.trim().toLowerCase());
+    searchTimeout = setTimeout(async () => {
+        await performSearch(searchTerm.trim().toLowerCase());
     }, 300);
 }
 
+// Perform search
 async function performSearch(searchTerm) {
     const resultsContainer = document.getElementById('searchResults');
+    if (!resultsContainer) return;
     
     if (!searchTerm) {
         resultsContainer.innerHTML = '';
         return;
     }
     
+    // Load creators if not loaded
     if (allCreators.length === 0) {
         resultsContainer.innerHTML = '<div class="search-no-results"><div class="icon">⏳</div><p>Searching...</p></div>';
         await loadAllCreators();
     }
     
+    // Filter creators
     const results = allCreators.filter(creator => 
         creator.name.toLowerCase().includes(searchTerm) ||
         creator.email.toLowerCase().includes(searchTerm)
     );
     
+    // Display results
     if (results.length === 0) {
         resultsContainer.innerHTML = `
             <div class="search-no-results">
@@ -878,40 +960,69 @@ async function performSearch(searchTerm) {
     }
 }
 
+// Open creator profile
 window.openCreatorProfile = async function(creatorId) {
+    const profileContent = document.getElementById('creatorProfileContent');
+    const profileAvatar = document.getElementById('creatorProfileAvatar');
+    const profileName = document.getElementById('creatorProfileName');
+    const profileEmail = document.getElementById('creatorProfileEmail');
+    
+    if (!profileContent) {
+        showToast('Profile modal not found', 'error');
+        return;
+    }
+    
+    // Show loading state
+    profileContent.innerHTML = '<div class="empty-section">Loading profile...</div>';
+    openModal('creatorProfileModal');
+    
     try {
+        // Get creator data
         const creatorDoc = await getDoc(doc(db, 'users', creatorId));
+        
         if (!creatorDoc.exists()) {
-            showToast('Creator not found', 'error');
+            profileContent.innerHTML = '<div class="empty-section">Creator not found</div>';
             return;
         }
         
         const creatorData = creatorDoc.data();
         
-        document.getElementById('creatorProfileAvatar').textContent = creatorData.name.charAt(0).toUpperCase();
-        document.getElementById('creatorProfileName').textContent = creatorData.name;
-        document.getElementById('creatorProfileEmail').textContent = creatorData.email;
+        // Update header
+        if (profileAvatar) profileAvatar.textContent = (creatorData.name || 'A').charAt(0).toUpperCase();
+        if (profileName) profileName.textContent = creatorData.name || 'Anonymous';
+        if (profileEmail) profileEmail.textContent = creatorData.email || '';
         
-        const qrSnapshot = await getDocs(
-            query(collection(db, 'users', creatorId, 'qrCodes'), orderBy('createdAt', 'desc'))
-        );
-        const qrCodes = [];
-        qrSnapshot.forEach(doc => qrCodes.push({ id: doc.id, ...doc.data() }));
+        // Load QR codes
+        let qrCodes = [];
+        try {
+            const qrSnapshot = await getDocs(collection(db, 'users', creatorId, 'qrCodes'));
+            qrSnapshot.forEach(doc => qrCodes.push({ id: doc.id, ...doc.data() }));
+        } catch (e) {
+            console.log('Could not load QR codes:', e);
+        }
         
-        const linksSnapshot = await getDocs(
-            query(collection(db, 'users', creatorId, 'links'), orderBy('createdAt', 'desc'))
-        );
-        const links = [];
-        linksSnapshot.forEach(doc => links.push({ id: doc.id, ...doc.data() }));
+        // Load links
+        let links = [];
+        try {
+            const linksSnapshot = await getDocs(collection(db, 'users', creatorId, 'links'));
+            linksSnapshot.forEach(doc => links.push({ id: doc.id, ...doc.data() }));
+        } catch (e) {
+            console.log('Could not load links:', e);
+        }
         
-        const campaignsSnapshot = await getDocs(
-            query(collection(db, 'users', creatorId, 'campaigns'), orderBy('createdAt', 'desc'))
-        );
-        const campaigns = [];
-        campaignsSnapshot.forEach(doc => campaigns.push({ id: doc.id, ...doc.data() }));
+        // Load campaigns
+        let campaigns = [];
+        try {
+            const campaignsSnapshot = await getDocs(collection(db, 'users', creatorId, 'campaigns'));
+            campaignsSnapshot.forEach(doc => campaigns.push({ id: doc.id, ...doc.data() }));
+        } catch (e) {
+            console.log('Could not load campaigns:', e);
+        }
         
+        // Build content
         let contentHTML = '';
         
+        // QR Codes Section
         contentHTML += `
             <div class="creator-section">
                 <h4>📱 QR Codes (${qrCodes.length})</h4>
@@ -919,8 +1030,8 @@ window.openCreatorProfile = async function(creatorId) {
                     <div class="creator-qr-grid">
                         ${qrCodes.map(qr => `
                             <div class="creator-qr-item" onclick="previewImage('${qr.imageData}')">
-                                <img src="${qr.imageData}" alt="${qr.name}">
-                                <p>${qr.name}</p>
+                                <img src="${qr.imageData}" alt="${qr.name || 'QR Code'}">
+                                <p>${qr.name || 'QR Code'}</p>
                             </div>
                         `).join('')}
                     </div>
@@ -928,6 +1039,7 @@ window.openCreatorProfile = async function(creatorId) {
             </div>
         `;
         
+        // Links Section
         contentHTML += `
             <div class="creator-section">
                 <h4>🔗 Support Links (${links.length})</h4>
@@ -937,7 +1049,7 @@ window.openCreatorProfile = async function(creatorId) {
                             <a href="${link.url}" target="_blank" rel="noopener" class="creator-link-item">
                                 <span class="creator-link-icon">${link.icon || '🔗'}</span>
                                 <div class="creator-link-info">
-                                    <h5>${link.title}</h5>
+                                    <h5>${link.title || 'Link'}</h5>
                                     <span>${link.url}</span>
                                 </div>
                             </a>
@@ -947,6 +1059,7 @@ window.openCreatorProfile = async function(creatorId) {
             </div>
         `;
         
+        // Campaigns Section
         contentHTML += `
             <div class="creator-section">
                 <h4>🚀 Campaigns (${campaigns.length})</h4>
@@ -954,8 +1067,8 @@ window.openCreatorProfile = async function(creatorId) {
                     <div class="creator-campaigns-list">
                         ${campaigns.map(c => `
                             <div class="creator-campaign-item">
-                                <h5>${getPlatformIcon(c.platform)} ${c.title}</h5>
-                                <p>${c.description}</p>
+                                <h5>${getPlatformIcon(c.platform)} ${c.title || 'Campaign'}</h5>
+                                <p>${c.description || ''}</p>
                                 <a href="${c.url}" target="_blank" rel="noopener">Support this campaign →</a>
                             </div>
                         `).join('')}
@@ -964,13 +1077,11 @@ window.openCreatorProfile = async function(creatorId) {
             </div>
         `;
         
-        document.getElementById('creatorProfileContent').innerHTML = contentHTML;
-        
-        openModal('creatorProfileModal');
+        profileContent.innerHTML = contentHTML;
         
     } catch (error) {
         console.error('Error loading creator profile:', error);
-        showToast('Error loading profile', 'error');
+        profileContent.innerHTML = '<div class="empty-section">Error loading profile. Please try again.</div>';
     }
 }
 
