@@ -397,7 +397,7 @@ nav.scrolled {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     gap: 1.5rem;
-    margin-top: 4rem;
+    margin-top: 2rem;
     width: 100%;
     max-width: 1000px;
 }
@@ -505,7 +505,6 @@ nav.scrolled {
     opacity: 0.5;
 }
 
-/* Creator Card */
 .creator-card {
     background: var(--bg-card);
     border: 1px solid var(--glass-border);
@@ -576,7 +575,9 @@ nav.scrolled {
     font-weight: 600;
 }
 
-/* Creator Profile Modal */
+/* ==========================================
+   CREATOR PROFILE MODAL
+   ========================================== */
 .creator-profile-modal {
     max-width: 700px;
     width: 100%;
@@ -656,10 +657,12 @@ nav.scrolled {
     overflow: hidden;
     cursor: pointer;
     transition: transform 0.3s ease;
+    border: 1px solid var(--glass-border);
 }
 
 .creator-qr-item:hover {
     transform: scale(1.05);
+    border-color: var(--neon-blue-dim);
 }
 
 .creator-qr-item img {
@@ -693,10 +696,12 @@ nav.scrolled {
     border-radius: 10px;
     text-decoration: none;
     transition: all 0.3s ease;
+    border: 1px solid var(--glass-border);
 }
 
 .creator-link-item:hover {
     background: rgba(0, 212, 255, 0.1);
+    border-color: var(--neon-blue-dim);
     transform: translateX(5px);
 }
 
@@ -770,6 +775,14 @@ nav.scrolled {
     padding: 1.5rem;
     color: var(--text-muted);
     font-size: 0.9rem;
+    background: var(--glass-bg);
+    border-radius: 10px;
+}
+
+.loading-spinner {
+    text-align: center;
+    padding: 3rem;
+    color: var(--text-secondary);
 }
 
 /* ==========================================
@@ -1147,7 +1160,6 @@ textarea.form-input {
     resize: vertical;
 }
 
-/* SELECT DROPDOWN FIX */
 select.form-input,
 .form-select {
     cursor: pointer;
@@ -1165,16 +1177,6 @@ select.form-input option,
     background-color: #12121a;
     color: #ffffff;
     padding: 0.75rem 1rem;
-}
-
-select.form-input option:hover,
-.form-select option:hover,
-select.form-input option:focus,
-.form-select option:focus,
-select.form-input option:checked,
-.form-select option:checked {
-    background-color: #1a1a2e;
-    color: #00d4ff;
 }
 
 /* ==========================================
